@@ -5,13 +5,14 @@ import java.util.HashMap;
 import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
-import java.util.TimeZone;
 
+import javax.annotation.PostConstruct;
 import javax.annotation.PreDestroy;
 
 import org.joda.time.DateTime;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.context.event.EventListener;
+import org.springframework.stereotype.Component;
 import org.springframework.stereotype.Service;
 
 import com.cumulocity.microservice.subscription.model.MicroserviceSubscriptionAddedEvent;
@@ -20,7 +21,7 @@ import com.cumulocity.model.Agent;
 import com.cumulocity.model.ID;
 import com.cumulocity.model.measurement.MeasurementValue;
 import com.cumulocity.rest.representation.alarm.AlarmRepresentation;
-import com.cumulocity.rest.representation.event.EventRepresentation;
+import com.cumulocity.    rest.representation.event.EventRepresentation;
 import com.cumulocity.rest.representation.identity.ExternalIDRepresentation;
 import com.cumulocity.rest.representation.inventory.ManagedObjectReferenceRepresentation;
 import com.cumulocity.rest.representation.inventory.ManagedObjectRepresentation;
@@ -36,13 +37,18 @@ import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.ObjectMapper;
 
 import c8y.IsDevice;
+import lombok.Getter;
+import lombok.Setter;
 import lombok.extern.slf4j.Slf4j;
+import mqttagent.configuration.ConfigurationService;
+import mqttagent.configuration.MQTTConfiguration;
 import mqttagent.model.MQTTMapping;
 import mqttagent.model.MQTTMappingsRepresentation;
 import mqttagent.service.MQTTClient;
 import mqttagent.service.MQTTMappingsConverter;
 
 @Slf4j
+@Component
 @Service
 public class C8yAgent {
 
@@ -65,30 +71,42 @@ public class C8yAgent {
     private MicroserviceSubscriptionsService subscriptionsService;
 
     @Autowired
-    private MQTTClient mqttClient;
-
-    @Autowired
     private ObjectMapper objectMapper;
 
     @Autowired
     private MQTTMappingsConverter converterService;
 
+    @Autowired
+    private ConfigurationService configurationService;
+
+    @Getter
+    @Autowired
+    private MQTTClient mqttClient;
+
     private ManagedObjectRepresentation agentMOR;
+
+    @Getter
+    @Setter
+    private String tenant;
 
     private final String AGENT_ID = "MQTT_AGENT";
     private final String AGENT_NAME = "Generic MQTT Agent";
     private final String MQTT_MAPPING_TYPE = "c8y_mqttMapping";
     private final String MQTT_MAPPING_FRAGMENT = "c8y_mqttMapping";
-    public String tenant = null;
+
+    private MQTTConfiguration mqttConfiguration;
+
+    private ArrayList<MQTTMapping> mqttMappings;
 
     @EventListener
-    public void init(MicroserviceSubscriptionAddedEvent event) {
+    public void onSubscriptionAdded(MicroserviceSubscriptionAddedEvent event) {
+       String te = event.getCredentials().getTenant();
+       log.info("Event received for Tenant {} here!", te);
+    }
 
-        // TODO handle what happens if multiple tenants subscribe to this microservice
-        tenant = event.getCredentials().getTenant();
-        log.info("Event received for Tenant {}", tenant);
-        TimeZone.setDefault(TimeZone.getTimeZone("Europe/Berlin"));
-
+    @PostConstruct
+    public void initPost() {
+        mqttClient.setC8yAgent(this);
         /* Connecting to Cumulocity */
         subscriptionsService.runForTenant(tenant, () -> {
             // register agent
@@ -240,90 +258,126 @@ public class C8yAgent {
 
     public MeasurementRepresentation createMeasurement(String name, String type, ManagedObjectRepresentation mor,
             DateTime dateTime, HashMap<String, MeasurementValue> mvMap) {
-        try {
-            MeasurementRepresentation measurementRepresentation = new MeasurementRepresentation();
-            measurementRepresentation.set(mvMap, name);
-            measurementRepresentation.setType(type);
-            measurementRepresentation.setSource(mor);
-            measurementRepresentation.setDateTime(dateTime);
-            log.debug("Creating Measurement {}", measurementRepresentation);
-            return measurementApi.create(measurementRepresentation);
-        } catch (SDKException e) {
-            log.error("Error creating Measurement", e);
-            return null;
-        }
+
+        MeasurementRepresentation measurementRep = new MeasurementRepresentation();
+        subscriptionsService.runForTenant(tenant, () -> {
+            measurementRep.set(mvMap, name);
+            measurementRep.setType(type);
+            measurementRep.setSource(mor);
+            measurementRep.setDateTime(dateTime);
+            log.debug("Creating Measurement {}", measurementRep);
+            MeasurementRepresentation m = measurementApi.create(measurementRep);
+            measurementRep.setId(m.getId());
+        });
+        return measurementRep;
+
     }
 
     public AlarmRepresentation createAlarm(String severity, String message, String type, DateTime alarmTime,
             ManagedObjectRepresentation parentMor) {
         AlarmRepresentation alarmRep = new AlarmRepresentation();
-        alarmRep.setSeverity(severity);
-        alarmRep.setSource(parentMor);
-        alarmRep.setText(message);
-        alarmRep.setDateTime(alarmTime);
-        alarmRep.setStatus("ACTIVE");
-        alarmRep.setType(type);
+        subscriptionsService.runForTenant(tenant, () -> {
+            alarmRep.setSeverity(severity);
+            alarmRep.setSource(parentMor);
+            alarmRep.setText(message);
+            alarmRep.setDateTime(alarmTime);
+            alarmRep.setStatus("ACTIVE");
+            alarmRep.setType(type);
 
-        alarmRep = this.alarmApi.create(alarmRep);
+            AlarmRepresentation a = this.alarmApi.create(alarmRep);
+            alarmRep.setId(a.getId());
+        });
         return alarmRep;
     }
 
     public void createEvent(String message, String type, DateTime eventTime, ManagedObjectRepresentation parentMor) {
-        EventRepresentation eventRep = new EventRepresentation();
-        eventRep.setSource(parentMor != null ? parentMor : agentMOR);
-        eventRep.setText(message);
-        eventRep.setDateTime(eventTime);
-        eventRep.setType(type);
-        this.eventApi.createAsync(eventRep);
+        subscriptionsService.runForTenant(tenant, () -> {
+            EventRepresentation eventRep = new EventRepresentation();
+            eventRep.setSource(parentMor != null ? parentMor : agentMOR);
+            eventRep.setText(message);
+            eventRep.setDateTime(eventTime);
+            eventRep.setType(type);
+            this.eventApi.createAsync(eventRep);
+        });
     }
 
     public ArrayList<MQTTMapping> getMQTTMappings() {
-        InventoryFilter inventoryFilter = new InventoryFilter();
-        ArrayList<MQTTMapping> result = new ArrayList<MQTTMapping>();
-        inventoryFilter.byType(MQTT_MAPPING_TYPE);
-        ManagedObjectRepresentation mo = inventoryApi.getManagedObjectsByFilter(inventoryFilter).get()
-                .getManagedObjects().get(0);
-        MQTTMappingsRepresentation mqttMo = converterService.asMQTTMappings(mo);
-        log.info("Found MQTTMapping {}", mqttMo);
-        result = mqttMo.getC8yMQTTMapping();
-        log.info("Found MQTTMapping {}", result.size());
+        subscriptionsService.runForTenant(tenant, () -> {
+            InventoryFilter inventoryFilter = new InventoryFilter();
+            ArrayList<MQTTMapping> result = new ArrayList<MQTTMapping>();
+            inventoryFilter.byType(MQTT_MAPPING_TYPE);
+            ManagedObjectRepresentation mo = inventoryApi.getManagedObjectsByFilter(inventoryFilter).get()
+                    .getManagedObjects().get(0);
+            MQTTMappingsRepresentation mqttMo = converterService.asMQTTMappings(mo);
+            log.info("Found MQTTMapping {}", mqttMo);
 
-        return result;
+            mqttMappings = mqttMo.getC8yMQTTMapping();
+            log.info("Found MQTTMapping {}", result.size());
+        });
+        return mqttMappings;
     }
 
     public void createC8Y_MEA(String targetAPI, String payload) {
-        try {
-            if (targetAPI.equals("event")) {
-                EventRepresentation er = objectMapper.readValue(payload, EventRepresentation.class);
-                er = eventApi.create(er);
-                log.info("New event posted: {}", er);
-            } else if (targetAPI.equals("alarm")) {
-                AlarmRepresentation ar = objectMapper.readValue(payload, AlarmRepresentation.class);
-                ar = alarmApi.create(ar);
-                log.info("New alarm posted: {}", ar);
-            } else if (targetAPI.equals("measurement")) {
-                MeasurementRepresentation mr = objectMapper.readValue(payload, MeasurementRepresentation.class);
-                mr = measurementApi.create(mr);
-                log.info("New measurement posted: {}", mr);
-            } else {
-                log.error("Not existing API!");
+        subscriptionsService.runForTenant(tenant, () -> {
+            try {
+                if (targetAPI.equals("event")) {
+                    EventRepresentation er = objectMapper.readValue(payload, EventRepresentation.class);
+                    er = eventApi.create(er);
+                    log.info("New event posted: {}", er);
+                } else if (targetAPI.equals("alarm")) {
+                    AlarmRepresentation ar = objectMapper.readValue(payload, AlarmRepresentation.class);
+                    ar = alarmApi.create(ar);
+                    log.info("New alarm posted: {}", ar);
+                } else if (targetAPI.equals("measurement")) {
+                    MeasurementRepresentation mr = objectMapper.readValue(payload, MeasurementRepresentation.class);
+                    mr = measurementApi.create(mr);
+                    log.info("New measurement posted: {}", mr);
+                } else {
+                    log.error("Not existing API!");
+                }
+            } catch (JsonProcessingException e) {
+                log.error("Could not map payload: {} {}", targetAPI, payload);
+            } catch (SDKException s) {
+                log.error("Could not sent payload to c8y: {} {} {}", targetAPI, payload, s);
             }
-        } catch (JsonProcessingException e) {
-            log.error("Could not map payload: {} {}", targetAPI, payload);
-        } catch (SDKException s) {
-            log.error("Could not sent payload to c8y: {} {} {}", targetAPI, payload, s);
-        }
+        });
     }
 
     public void saveMQTTMappings(List<MQTTMapping> mappings) throws JsonProcessingException {
-        InventoryFilter inventoryFilter = new InventoryFilter();
-        inventoryFilter.byType(MQTT_MAPPING_TYPE);
-        ManagedObjectRepresentation mo = inventoryApi.getManagedObjectsByFilter(inventoryFilter).get()
-                .getManagedObjects().get(0);
-        ManagedObjectRepresentation moUpdate = new ManagedObjectRepresentation();
-        moUpdate.setId(mo.getId());
-        moUpdate.setProperty(MQTT_MAPPING_FRAGMENT, mappings);
-        inventoryApi.update(moUpdate);
-        log.info("Updated MQTTMapping after deletion!");
+        subscriptionsService.runForTenant(tenant, () -> {
+            InventoryFilter inventoryFilter = new InventoryFilter();
+            inventoryFilter.byType(MQTT_MAPPING_TYPE);
+            ManagedObjectRepresentation mo = inventoryApi.getManagedObjectsByFilter(inventoryFilter).get()
+                    .getManagedObjects().get(0);
+            ManagedObjectRepresentation moUpdate = new ManagedObjectRepresentation();
+            moUpdate.setId(mo.getId());
+            moUpdate.setProperty(MQTT_MAPPING_FRAGMENT, mappings);
+            inventoryApi.update(moUpdate);
+            log.info("Updated MQTTMapping!");
+        });
+    }
+
+    public void saveConfiguration(final MQTTConfiguration configuration) {
+        subscriptionsService.runForTenant(tenant, () -> {
+            try {
+                configurationService.saveConfiguration(configuration);
+                // invalidate broker client
+                mqttClient.setInitilized(false);
+                mqttClient.reconnect();
+            } catch (JsonProcessingException e) {
+                log.error("Failed to store configuration");
+            }
+        });
+    }
+
+    public MQTTConfiguration loadConfiguration() {
+        subscriptionsService.runForTenant(tenant, () -> {
+            log.info("XXX-Tenant: {}", tenant);
+            mqttConfiguration = configurationService.loadConfiguration();
+            // invalidate broker client
+            mqttClient.setInitilized(false);
+            mqttClient.reconnect();
+        });
+        return mqttConfiguration;
     }
 }

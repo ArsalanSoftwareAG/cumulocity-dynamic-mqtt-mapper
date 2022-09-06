@@ -7,6 +7,8 @@ import java.util.Map;
 import java.util.TimeZone;
 import java.util.regex.Pattern;
 
+import javax.annotation.PostConstruct;
+
 import org.eclipse.paho.client.mqttv3.IMqttDeliveryToken;
 import org.eclipse.paho.client.mqttv3.MqttCallback;
 import org.eclipse.paho.client.mqttv3.MqttMessage;
@@ -22,23 +24,20 @@ import com.cumulocity.rest.representation.identity.ExternalIDRepresentation;
 import com.jayway.jsonpath.JsonPath;
 import com.jayway.jsonpath.PathNotFoundException;
 
+import lombok.Setter;
 import lombok.extern.slf4j.Slf4j;
 import mqttagent.callback.handler.SysHandler;
 import mqttagent.core.C8yAgent;
 import mqttagent.model.MQTTMapping;
 import mqttagent.model.MQTTMappingSubstitution;
 import mqttagent.model.Snoop_Status;
-import mqttagent.service.MQTTClient;
 
 @Slf4j
 @Service
 public class GenericCallback implements MqttCallback {
 
-    @Autowired
-    C8yAgent c8yAgent;
-
-    @Autowired
-    MQTTClient mqttClient;
+    @Setter
+    private C8yAgent c8yAgent;
 
     @Autowired
     MicroserviceSubscriptionsService subscriptionsService;
@@ -46,23 +45,30 @@ public class GenericCallback implements MqttCallback {
     @Autowired
     SysHandler sysHandler;
 
-    @Override
-    public void connectionLost(Throwable throwable) {
-        log.error("Connection Lost to MQTT Broker: ", throwable);
-        subscriptionsService.runForTenant(c8yAgent.tenant, () -> {
-            c8yAgent.createEvent("Connection lost to MQTT Broker", "mqtt_status_event", DateTime.now(), null);
-        });
-        mqttClient.reconnect();
-    }
-
+    
     static SimpleDateFormat sdf;
     static {
         sdf = new SimpleDateFormat("yyyy-MM-dd'T'HH:mm:ss.SSSXXX");
         sdf.setTimeZone(TimeZone.getTimeZone("CET"));
     }
-
+    
     static String TOKEN_DEVICE_TOPIC = "$.TOPIC";
     static int SNOOP_TEMPLATES_MAX = 5;
+    
+    @PostConstruct
+    public void initPost() {
+        sysHandler.setC8yAgent(c8yAgent);
+        
+    }
+
+
+    @Override
+    public void connectionLost(Throwable throwable) {
+        log.error("Connection Lost to MQTT Broker: ", throwable);
+
+        c8yAgent.createEvent("Connection lost to MQTT Broker", "mqtt_status_event", DateTime.now(), null);
+        c8yAgent.getMqttClient().reconnect();
+    }
 
     @Override
     public void messageArrived(String topic, MqttMessage mqttMessage) throws Exception {
@@ -77,18 +83,19 @@ public class GenericCallback implements MqttCallback {
                         payloadMessage);
 
                 // TODO handle what happens if multiple tenants subscribe to this microservice
-                Map<String, MQTTMapping> mappings = mqttClient.getMappingsPerTenant(c8yAgent.tenant);
+                Map<String, MQTTMapping> mappings = c8yAgent.getMqttClient().getMappingsPerTenant(c8yAgent.getTenant());
                 MQTTMapping map = mappings.get(topic);
-                log.info("Looking for exact matching of topics: {},{},{}", c8yAgent.tenant, topic, map);
+                log.info("Looking for exact matching of topics: {},{},{}", c8yAgent.getTenant(), topic, map);
                 if (map != null) {
-                    handleNewPayload(map, deviceIdentifier, payloadMessage, c8yAgent.tenant);
+                    handleNewPayload(map, deviceIdentifier, payloadMessage, c8yAgent.getTenant());
                 } else {
                     // exact topic not found, look for topic without device identifier
                     // e.g. /temperature/9090 -> /temperature/#
                     map = mappings.get(wildcardTopic);
-                    log.info("Looking for wildcard matching of topics: {},{},{}", c8yAgent.tenant, wildcardTopic, map);
+                    log.info("Looking for wildcard matching of topics: {},{},{}", c8yAgent.getTenant(), wildcardTopic,
+                            map);
                     if (map != null) {
-                        handleNewPayload(map, deviceIdentifier, payloadMessage, c8yAgent.tenant);
+                        handleNewPayload(map, deviceIdentifier, payloadMessage, c8yAgent.getTenant());
                     }
                 }
             }
@@ -98,53 +105,52 @@ public class GenericCallback implements MqttCallback {
     }
 
     private void handleNewPayload(MQTTMapping map, String deviceIdentifier, String payloadMessage, String tenant) {
-        subscriptionsService.runForTenant(tenant, () -> {
-            if (map.snoopTemplates.equals(Snoop_Status.ENABLED) || map.snoopTemplates.equals(Snoop_Status.STARTED)) {
-                map.snoopedTemplates.add(payloadMessage);
-                if (map.snoopedTemplates.size() > SNOOP_TEMPLATES_MAX) {
-                    // stop snooping
-                    map.snoopTemplates = Snoop_Status.STOPPED;
-                } else {
-                    map.snoopTemplates = Snoop_Status.STARTED;
-                }
-                log.info("Adding snoopedTemplate to map: {},{},{}", map.topic, map.snoopedTemplates.size(), map.snoopTemplates);
-                mqttClient.setTenantMappingsDirty(tenant, map.topic);
+        if (map.snoopTemplates.equals(Snoop_Status.ENABLED) || map.snoopTemplates.equals(Snoop_Status.STARTED)) {
+            map.snoopedTemplates.add(payloadMessage);
+            if (map.snoopedTemplates.size() > SNOOP_TEMPLATES_MAX) {
+                // stop snooping
+                map.snoopTemplates = Snoop_Status.STOPPED;
             } else {
-                var payloadTarget = new JSONObject(map.target);
-                for (MQTTMappingSubstitution sub : map.substitutions) {
-                    var substitute = "";
-                    try {
-                        if (("$." + sub.pathSource).equals(TOKEN_DEVICE_TOPIC)
-                                && deviceIdentifier != null
-                                && !deviceIdentifier.equals("")) {
-                            substitute = deviceIdentifier;
-                        } else {
-                            substitute = (String) JsonPath.parse(payloadMessage)
-                                    .read("$." + sub.pathSource);
-                        }
-                    } catch (PathNotFoundException p) {
-                        log.error("No substitution for: {}, {}, {}", "$." + sub.pathSource, payloadTarget,
-                                payloadMessage);
-                    }
-
-                    String[] pathTarget = sub.pathTarget.split(Pattern.quote("."));
-                    if (pathTarget == null) {
-                        pathTarget = new String[] { sub.pathTarget };
-                    }
-                    if (sub.pathTarget.equals("source.id") && map.mapDeviceIdentifier) {
-                        var deviceId = resolveExternalId(substitute, map.externalIdType);
-                        if (deviceId == null) {
-                            throw new RuntimeException("External id " + deviceId + " for type "
-                                    + map.externalIdType + " not found!");
-                        }
-                        substitute = deviceId;
-                    }
-                    addValue(substitute, payloadTarget, pathTarget);
-                }
-                log.info("Posting payload: {}", payloadTarget);
-                c8yAgent.createC8Y_MEA(map.targetAPI, payloadTarget.toString());
+                map.snoopTemplates = Snoop_Status.STARTED;
             }
-        });
+            log.info("Adding snoopedTemplate to map: {},{},{}", map.topic, map.snoopedTemplates.size(),
+                    map.snoopTemplates);
+            c8yAgent.getMqttClient().setTenantMappingsDirty(tenant, map.topic);
+        } else {
+            var payloadTarget = new JSONObject(map.target);
+            for (MQTTMappingSubstitution sub : map.substitutions) {
+                var substitute = "";
+                try {
+                    if (("$." + sub.pathSource).equals(TOKEN_DEVICE_TOPIC)
+                            && deviceIdentifier != null
+                            && !deviceIdentifier.equals("")) {
+                        substitute = deviceIdentifier;
+                    } else {
+                        substitute = (String) JsonPath.parse(payloadMessage)
+                                .read("$." + sub.pathSource);
+                    }
+                } catch (PathNotFoundException p) {
+                    log.error("No substitution for: {}, {}, {}", "$." + sub.pathSource, payloadTarget,
+                            payloadMessage);
+                }
+
+                String[] pathTarget = sub.pathTarget.split(Pattern.quote("."));
+                if (pathTarget == null) {
+                    pathTarget = new String[] { sub.pathTarget };
+                }
+                if (sub.pathTarget.equals("source.id") && map.mapDeviceIdentifier) {
+                    var deviceId = resolveExternalId(substitute, map.externalIdType);
+                    if (deviceId == null) {
+                        throw new RuntimeException("External id " + deviceId + " for type "
+                                + map.externalIdType + " not found!");
+                    }
+                    substitute = deviceId;
+                }
+                addValue(substitute, payloadTarget, pathTarget);
+            }
+            log.info("Posting payload: {}", payloadTarget);
+            c8yAgent.createC8Y_MEA(map.targetAPI, payloadTarget.toString());
+        }
     }
 
     private String resolveExternalId(String externalId, String externalIdType) {

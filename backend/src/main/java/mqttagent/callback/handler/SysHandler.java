@@ -1,18 +1,18 @@
 package mqttagent.callback.handler;
 
-import com.cumulocity.microservice.subscription.service.MicroserviceSubscriptionsService;
-import com.cumulocity.model.measurement.MeasurementValue;
-
-import lombok.extern.slf4j.Slf4j;
-import mqttagent.core.C8yAgent;
-import org.eclipse.paho.client.mqttv3.MqttMessage;
-import org.joda.time.DateTime;
-import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.stereotype.Service;
-
 import java.math.BigDecimal;
 import java.math.RoundingMode;
 import java.util.HashMap;
+
+import org.eclipse.paho.client.mqttv3.MqttMessage;
+import org.joda.time.DateTime;
+import org.springframework.stereotype.Service;
+
+import com.cumulocity.model.measurement.MeasurementValue;
+
+import lombok.Setter;
+import lombok.extern.slf4j.Slf4j;
+import mqttagent.core.C8yAgent;
 
 @Slf4j
 @Service
@@ -38,111 +38,117 @@ public class SysHandler {
 
     private final String SUB_COUNT = "$SYS/broker/subscriptions/count";
 
-    @Autowired
+    @Setter
     private C8yAgent c8yAgent;
-
-    @Autowired
-    private MicroserviceSubscriptionsService subscriptionsService;
 
     public void handleSysPayload(String topic, MqttMessage mqttMessage) {
         if (topic == null)
             return;
         byte[] payload = mqttMessage.getPayload();
         HashMap<String, MeasurementValue> mvMap = new HashMap<>();
-        if(BYTES_RECEIVED.equals(topic)) {
+        if (BYTES_RECEIVED.equals(topic)) {
             MeasurementValue mv = new MeasurementValue();
             mv.setValue(bytesToBigDecimal(payload));
             mv.setUnit("bytes");
             mvMap.put("BytesReceived", mv);
-            subscriptionsService.runForTenant(c8yAgent.tenant, () -> {
-                c8yAgent.createMeasurement("MqttSysStatistics", "mqtt_sysstatistics", c8yAgent.getAgentMOR(), DateTime.now(), mvMap);
-            });
+
+            c8yAgent.createMeasurement("MqttSysStatistics", "mqtt_sysstatistics", c8yAgent.getAgentMOR(),
+                    DateTime.now(), mvMap);
+
         }
-        if(BYTES_SENT.equals(topic)) {
+        if (BYTES_SENT.equals(topic)) {
             MeasurementValue mv = new MeasurementValue();
             mv.setValue(bytesToBigDecimal(payload));
             mv.setUnit("bytes");
             mvMap.put("BytesSent", mv);
-            subscriptionsService.runForTenant(c8yAgent.tenant, () -> {
-                c8yAgent.createMeasurement("MqttSysStatistics", "mqtt_sysstatistics", c8yAgent.getAgentMOR(), DateTime.now(), mvMap);
-            });
+
+            c8yAgent.createMeasurement("MqttSysStatistics", "mqtt_sysstatistics", c8yAgent.getAgentMOR(),
+                    DateTime.now(), mvMap);
+
         }
-        if(CLIENTS_CONNECTED.equals(topic)) {
+        if (CLIENTS_CONNECTED.equals(topic)) {
             MeasurementValue mv = new MeasurementValue();
             mv.setValue(bytesToBigDecimal(payload));
             mv.setUnit("#");
             mvMap.put("ClientsConnected", mv);
-            subscriptionsService.runForTenant(c8yAgent.tenant, () -> {
-                c8yAgent.createMeasurement("MqttSysStatistics", "mqtt_sysstatistics", c8yAgent.getAgentMOR(), DateTime.now(), mvMap);
-            });
+
+            c8yAgent.createMeasurement("MqttSysStatistics", "mqtt_sysstatistics", c8yAgent.getAgentMOR(),
+                    DateTime.now(), mvMap);
+
         }
-        if(CLIENTS_PERSISTED.equals(topic)) {
+        if (CLIENTS_PERSISTED.equals(topic)) {
             MeasurementValue mv = new MeasurementValue();
             mv.setValue(bytesToBigDecimal(payload));
             mv.setUnit("#");
             mvMap.put("ClientsPersisted", mv);
-            subscriptionsService.runForTenant(c8yAgent.tenant, () -> {
-                c8yAgent.createMeasurement("MqttSysStatistics", "mqtt_sysstatistics", c8yAgent.getAgentMOR(), DateTime.now(), mvMap);
-            });
+
+            c8yAgent.createMeasurement("MqttSysStatistics", "mqtt_sysstatistics", c8yAgent.getAgentMOR(),
+                    DateTime.now(), mvMap);
+
         }
-        if(CLIENTS_MAX.equals(topic)) {
+        if (CLIENTS_MAX.equals(topic)) {
             MeasurementValue mv = new MeasurementValue();
             mv.setValue(bytesToBigDecimal(payload));
             mv.setUnit("#");
             mvMap.put("ClientsMax", mv);
-            subscriptionsService.runForTenant(c8yAgent.tenant, () -> {
-                c8yAgent.createMeasurement("MqttSysStatistics", "mqtt_sysstatistics", c8yAgent.getAgentMOR(), DateTime.now(), mvMap);
-            });
+
+            c8yAgent.createMeasurement("MqttSysStatistics", "mqtt_sysstatistics", c8yAgent.getAgentMOR(),
+                    DateTime.now(), mvMap);
+
         }
 
-        if(CLIENTS_TOTAL.equals(topic)) {
+        if (CLIENTS_TOTAL.equals(topic)) {
             MeasurementValue mv = new MeasurementValue();
             mv.setValue(bytesToBigDecimal(payload));
             mv.setUnit("#");
             mvMap.put("ClientsTotal", mv);
-            subscriptionsService.runForTenant(c8yAgent.tenant, () -> {
-                c8yAgent.createMeasurement("MqttSysStatistics", "mqtt_sysstatistics", c8yAgent.getAgentMOR(), DateTime.now(), mvMap);
-            });
+
+            c8yAgent.createMeasurement("MqttSysStatistics", "mqtt_sysstatistics", c8yAgent.getAgentMOR(),
+                    DateTime.now(), mvMap);
+
         }
 
-        if(MSG_RECEIVED.equals(topic)) {
+        if (MSG_RECEIVED.equals(topic)) {
             MeasurementValue mv = new MeasurementValue();
             mv.setValue(bytesToBigDecimal(payload));
             mv.setUnit("#");
             mvMap.put("MsgReceived", mv);
-            subscriptionsService.runForTenant(c8yAgent.tenant, () -> {
-                c8yAgent.createMeasurement("MqttSysStatistics", "mqtt_sysstatistics", c8yAgent.getAgentMOR(), DateTime.now(), mvMap);
-            });
+
+            c8yAgent.createMeasurement("MqttSysStatistics", "mqtt_sysstatistics", c8yAgent.getAgentMOR(),
+                    DateTime.now(), mvMap);
+
         }
 
-        if(MSG_SENT.equals(topic)) {
+        if (MSG_SENT.equals(topic)) {
             MeasurementValue mv = new MeasurementValue();
             mv.setValue(bytesToBigDecimal(payload));
             mv.setUnit("#");
             mvMap.put("MsgSent", mv);
-            subscriptionsService.runForTenant(c8yAgent.tenant, () -> {
-                c8yAgent.createMeasurement("MqttSysStatistics", "mqtt_sysstatistics", c8yAgent.getAgentMOR(), DateTime.now(), mvMap);
-            });
+
+            c8yAgent.createMeasurement("MqttSysStatistics", "mqtt_sysstatistics", c8yAgent.getAgentMOR(),
+                    DateTime.now(), mvMap);
+
         }
 
-        if(MSG_DROPPED.equals(topic)) {
+        if (MSG_DROPPED.equals(topic)) {
             MeasurementValue mv = new MeasurementValue();
             mv.setValue(bytesToBigDecimal(payload));
             mv.setUnit("#");
             mvMap.put("MsgDropped", mv);
-            subscriptionsService.runForTenant(c8yAgent.tenant, () -> {
-                c8yAgent.createMeasurement("MqttSysStatistics", "mqtt_sysstatistics", c8yAgent.getAgentMOR(), DateTime.now(), mvMap);
-            });
+            c8yAgent.createMeasurement("MqttSysStatistics", "mqtt_sysstatistics", c8yAgent.getAgentMOR(),
+                    DateTime.now(), mvMap);
+
         }
 
-        if(SUB_COUNT.equals(topic)) {
+        if (SUB_COUNT.equals(topic)) {
             MeasurementValue mv = new MeasurementValue();
             mv.setValue(bytesToBigDecimal(payload));
             mv.setUnit("#");
             mvMap.put("SubCount", mv);
-            subscriptionsService.runForTenant(c8yAgent.tenant, () -> {
-                c8yAgent.createMeasurement("MqttSysStatistics", "mqtt_sysstatistics", c8yAgent.getAgentMOR(), DateTime.now(), mvMap);
-            });
+
+            c8yAgent.createMeasurement("MqttSysStatistics", "mqtt_sysstatistics", c8yAgent.getAgentMOR(),
+                    DateTime.now(), mvMap);
+
         }
     }
 

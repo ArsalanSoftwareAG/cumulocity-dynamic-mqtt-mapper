@@ -8,6 +8,7 @@ import org.springframework.context.annotation.Primary;
 import org.springframework.core.task.TaskExecutor;
 import org.springframework.scheduling.annotation.EnableAsync;
 import org.springframework.scheduling.concurrent.ThreadPoolTaskExecutor;
+import org.springframework.web.bind.annotation.RestController;
 
 import com.cumulocity.microservice.autoconfigure.MicroserviceApplication;
 import com.cumulocity.microservice.context.annotation.EnableContextSupport;
@@ -18,7 +19,7 @@ import com.fasterxml.jackson.datatype.jsr310.JavaTimeModule;
 
 import lombok.extern.slf4j.Slf4j;
 import mqttagent.core.C8yAgent;
-import mqttagent.service.MQTTClient;
+import mqttagent.rest.MQTTRestController;
 import mqttagent.service.RFC3339DateFormat;
 
 @Slf4j
@@ -29,10 +30,14 @@ import mqttagent.service.RFC3339DateFormat;
 public class App {
 
     @Autowired
-    C8yAgent c8yAgent;
+    MQTTRestController controller;
 
     @Autowired
-    MQTTClient mqttClient;
+    C8yAgent agent;
+
+    public static void main(String[] args) {
+        SpringApplication.run(App.class, args);
+    }
 
     @Bean
     public TaskExecutor taskExecutor() {
@@ -41,10 +46,6 @@ public class App {
         executor.setMaxPoolSize(10);
         executor.setQueueCapacity(25);
         return executor;
-    }
-
-    public static void main(String[] args) {
-        SpringApplication.run(App.class, args);
     }
 
     @Bean

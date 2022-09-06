@@ -10,6 +10,8 @@ import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.concurrent.Future;
 
+import javax.annotation.PostConstruct;
+
 import org.apache.commons.lang3.StringUtils;
 import org.apache.commons.lang3.mutable.MutableInt;
 import org.apache.commons.lang3.mutable.MutableLong;
@@ -28,6 +30,9 @@ import org.springframework.web.client.HttpServerErrorException;
 import com.cumulocity.microservice.subscription.service.MicroserviceSubscriptionsService;
 import com.fasterxml.jackson.core.JsonProcessingException;
 
+import lombok.Data;
+import lombok.Getter;
+import lombok.Setter;
 import lombok.extern.slf4j.Slf4j;
 import mqttagent.callback.GenericCallback;
 import mqttagent.configuration.ConfigurationService;
@@ -37,68 +42,69 @@ import mqttagent.model.MQTTMapping;
 import mqttagent.model.MQTTMappingsRepresentation;
 
 @Slf4j
-@Configuration
 @EnableScheduling
 @Service
 public class MQTTClient {
 
-    MQTTConfiguration mqttConfiguration;
-
     @Autowired
     private ConfigurationService configurationService;
-
-    private MqttClient mqttClient;
-
-    @Autowired
-    private C8yAgent c8yAgent;
-
-    @Autowired
-    private MicroserviceSubscriptionsService subscriptionsService;
-
+    
     @Autowired
     private GenericCallback genericCallback;
 
     private ExecutorService newCachedThreadPool = Executors.newCachedThreadPool();
-
+    
     private Future reconnectTask;
-
+    
     private Future initTask;
-
+    
     private boolean initilized = false;
+    
+    
+    private MQTTConfiguration mqttConfiguration;
+
+    @Setter
+    @Getter
+    private C8yAgent c8yAgent;
+    
+    private MqttClient pahoClient;
 
     // mappings: tenant -> ( topic -> mqtt_mappping)
     private Map<String, Map<String, MQTTMapping>> tenantMappings = new HashMap<String, Map<String, MQTTMapping>>();
     private Map<String, Set<String>> tenantMappingsDirty = new HashMap<String, Set<String>>();
 
+    @PostConstruct
+    public void initPost() {
+        genericCallback.setC8yAgent(c8yAgent);
+        
+    }
+
     private void runInit() {
         while (!isInitilized()) {
             log.info("Try to retrieve MQTT connection configuration now ...");
-            subscriptionsService.runForTenant(c8yAgent.tenant, () -> {
-                final MQTTConfiguration configuration = configurationService.loadConfiguration();
-                mqttConfiguration = configuration;
-                log.info("Configuration found: {}", configuration);
-                if (configuration != null && configuration.active) {
-                    try {
-                        String prefix = mqttConfiguration.useTLS ? "ssl://" : "tcp://";
-                        String broker = prefix + mqttConfiguration.mqttHost + ":" + mqttConfiguration.mqttPort;
-                        mqttClient = new MqttClient(broker, mqttConfiguration.getClientId(), new MemoryPersistence());
-                        setInitilized(true);
-                        log.info("Connecting to MQTT Broker {}", broker);
-                    } catch (HttpServerErrorException e) {
-                        log.error("Failed to authenticate to MQTT broker", e);
+            mqttConfiguration = c8yAgent.loadConfiguration();
+            log.info("Configuration found: {}, {}, {}", mqttConfiguration, c8yAgent.getTenant(), c8yAgent.getMqttClient());
+            if (mqttConfiguration != null && mqttConfiguration.active) {
+                try {
+                    String prefix = mqttConfiguration.useTLS ? "ssl://" : "tcp://";
+                    String broker = prefix + mqttConfiguration.mqttHost + ":" + mqttConfiguration.mqttPort;
+                    pahoClient = new MqttClient(broker, mqttConfiguration.getClientId(), new MemoryPersistence());
+                    setInitilized(true);
+                    log.info("Connecting to MQTT Broker {}", broker);
+                } catch (HttpServerErrorException e) {
+                    log.error("Failed to authenticate to MQTT broker", e);
 
-                    } catch (MqttException e) {
-                        log.error("Failed to connect to MQTT broker", e);
-                    }
+                } catch (MqttException e) {
+                    log.error("Failed to connect to MQTT broker", e);
                 }
-            });
+            }
+
             try {
                 log.info("Try to retrieve MQTT connection configuration in 30s ...");
                 Thread.sleep(10000);
             } catch (InterruptedException e) {
                 log.error("Error on reconnect: ", e);
             }
-
         }
     }
 
@@ -111,7 +117,7 @@ public class MQTTClient {
     }
 
     private void runReconnect() {
-        // subscriptionsService.runForTenant(c8yAgent.tenant, () -> {
+        // subscriptionsService.runForTenant(tenant, () -> {
         log.info("Try to reestablish the MQTT connection now I");
         disconnect();
         while (!isConnected()) {
@@ -157,30 +163,30 @@ public class MQTTClient {
             connOpts.setAutomaticReconnect(false);
             connOpts.setUserName(mqttConfiguration.getUser());
             connOpts.setPassword(mqttConfiguration.getPassword().toCharArray());
-            mqttClient.connect(connOpts);
-            log.info("Successfully connected to Broker {}", mqttClient.getServerURI());
-            subscriptionsService.runForTenant(c8yAgent.tenant, () -> {
-                c8yAgent.createEvent("Successfully connected to Broker " + mqttClient.getServerURI(),
-                        "mqtt_status_event",
-                        DateTime.now(), null);
-            });
+            pahoClient.connect(connOpts);
+            log.info("Successfully connected to Broker {}", pahoClient.getServerURI());
+
+            c8yAgent.createEvent("Successfully connected to Broker " + pahoClient.getServerURI(),
+                    "mqtt_status_event",
+                    DateTime.now(), null);
+
         }
     }
 
     public boolean isConnected() {
-        return mqttClient != null ? mqttClient.isConnected() : false;
+        return pahoClient != null ? pahoClient.isConnected() : false;
     }
 
     public void disconnect() {
-        log.info("Disconnecting from MQTT Broker: {}, {}", (mqttClient == null ? null : mqttClient.getServerURI()),
+        log.info("Disconnecting from MQTT Broker: {}, {}", (pahoClient == null ? null : pahoClient.getServerURI()),
                 isInitilized());
         try {
-            if (isInitilized() && mqttClient != null && mqttClient.isConnected()) {
-                log.debug("Disconnected from MQTT Broker I: {}", mqttClient.getServerURI());
-                mqttClient.unsubscribe("#");
-                mqttClient.unsubscribe("$SYS");
-                mqttClient.disconnect();
-                log.debug("Disconnected from MQTT Broker II: {}", mqttClient.getServerURI());
+            if (isInitilized() && pahoClient != null && pahoClient.isConnected()) {
+                log.debug("Disconnected from MQTT Broker I: {}", pahoClient.getServerURI());
+                pahoClient.unsubscribe("#");
+                pahoClient.unsubscribe("$SYS");
+                pahoClient.disconnect();
+                log.debug("Disconnected from MQTT Broker II: {}", pahoClient.getServerURI());
             }
         } catch (MqttException e) {
             log.error("Error on disconnecting MQTT Client: ", e);
@@ -201,17 +207,6 @@ public class MQTTClient {
         return configurationService.loadConfiguration();
     }
 
-    public void saveConfiguration(final MQTTConfiguration configuration) {
-        try {
-            configurationService.saveConfiguration(configuration);
-            // invalidate broker client
-            setInitilized(false);
-            reconnect();
-        } catch (JsonProcessingException e) {
-            log.error("Failed to store configuration");
-        }
-    }
-
     public boolean isConnectionConfigured() {
         return (mqttConfiguration != null) && !StringUtils.isEmpty(mqttConfiguration.mqttHost) &&
                 !(mqttConfiguration.mqttPort == 0) &&
@@ -228,13 +223,12 @@ public class MQTTClient {
         return initilized;
     }
 
-    private void setInitilized(boolean init) {
+    public void setInitilized(boolean init) {
         initilized = init;
     }
 
     // TODO change this to respect the tenant name
-    public void reloadMappings(String tenant) {
-        subscriptionsService.runForTenant(tenant, () -> {
+    public void reloadMappings() {
             List<MQTTMapping> mappings = c8yAgent.getMQTTMappings();
             // convert list -> map
             Map<String, MQTTMapping> updatedMappingsMap = new HashMap<String, MQTTMapping>();
@@ -243,7 +237,7 @@ public class MQTTClient {
                 log.info("Processing addition for topic: {}", m.topic);
             });
             // process changes
-            final Map<String, MQTTMapping> activeMappingsMap = tenantMappings.getOrDefault(tenant,
+            final Map<String, MQTTMapping> activeMappingsMap = tenantMappings.getOrDefault(c8yAgent.getTenant(),
                     new HashMap<String, MQTTMapping>());
 
             // unsubscribe not used topics
@@ -290,56 +284,42 @@ public class MQTTClient {
                 }
             });
             // update mappings
-            tenantMappings.put(tenant, updatedMappingsMap);
-        });
-    }
-
-    public List<MQTTMapping> getMappings() {
-        List<MQTTMapping> result = new ArrayList<MQTTMapping>();
-        // TODO enhance method for multi tenancy
-        subscriptionsService.runForTenant(c8yAgent.tenant, () -> {
-            result.addAll(c8yAgent.getMQTTMappings());
-        });
-        return result;
+            tenantMappings.put(c8yAgent.getTenant(), updatedMappingsMap);
     }
 
     public void subscribe(String topic, Integer qos) throws MqttException {
-        if (isInitilized() && mqttClient != null) {
+        if (isInitilized() && pahoClient != null) {
             log.info("Subscribing on topic {}", topic);
-            subscriptionsService.runForTenant(c8yAgent.tenant, () -> {
-                c8yAgent.createEvent("Subscribing on topic " + topic, "mqtt_status_event", DateTime.now(), null);
-            });
-            mqttClient.setCallback(genericCallback);
+
+            c8yAgent.createEvent("Subscribing on topic " + topic, "mqtt_status_event", DateTime.now(), null);
+            pahoClient.setCallback(genericCallback);
             if (qos != null)
-                mqttClient.subscribe(topic, qos);
+                pahoClient.subscribe(topic, qos);
             else
-                mqttClient.subscribe(topic);
+                pahoClient.subscribe(topic);
             log.debug("Successfully subscribed on topic {}", topic);
         }
     }
 
     private void subscribe(String topic, MQTTMapping map) throws MqttException {
-        if (isInitilized() && mqttClient != null) {
+        if (isInitilized() && pahoClient != null) {
             log.info("Subscribing on topic {}", topic);
-            subscriptionsService.runForTenant(c8yAgent.tenant, () -> {
-                c8yAgent.createEvent("Subscribing on topic " + topic, "mqtt_status_event", DateTime.now(), null);
-            });
-            mqttClient.setCallback(genericCallback);
+
+            c8yAgent.createEvent("Subscribing on topic " + topic, "mqtt_status_event", DateTime.now(), null);
+            pahoClient.setCallback(genericCallback);
             if (map != null)
-                mqttClient.subscribe(topic, (int) map.qos);
+                pahoClient.subscribe(topic, (int) map.qos);
             else
-                mqttClient.subscribe(topic);
+                pahoClient.subscribe(topic);
             log.debug("Successfully subscribed on topic {}", topic);
         }
     }
 
     private void unsubscribe(String topic) throws MqttException {
-        if (isInitilized() && mqttClient != null) {
+        if (isInitilized() && pahoClient != null) {
             log.info("Unsubscribing from topic {}", topic);
-            subscriptionsService.runForTenant(c8yAgent.tenant, () -> {
-                c8yAgent.createEvent("Unsubscribing on topic " + topic, "mqtt_status_event", DateTime.now(), null);
-            });
-            mqttClient.unsubscribe(topic);
+            c8yAgent.createEvent("Unsubscribing on topic " + topic, "mqtt_status_event", DateTime.now(), null);
+            pahoClient.unsubscribe(topic);
             log.debug("Successfully unsubscribed from topic {}", topic);
         }
     }
@@ -388,7 +368,6 @@ public class MQTTClient {
     }
 
     public Long deleteMapping(String tenant, Long id) {
-        subscriptionsService.runForTenant(tenant, () -> {
             List<MQTTMapping> mappings = c8yAgent.getMQTTMappings();
             List<MQTTMapping> updatedMappings = new ArrayList<MQTTMapping>();
             MutableInt i = new MutableInt(0);
@@ -406,71 +385,67 @@ public class MQTTClient {
                 log.error("Cound not process parse mappings as json: {}", ex);
                 throw new RuntimeException(ex);
             }
-        });
         // update cached mappings
-        reloadMappings(tenant);
+        reloadMappings();
         return id;
     }
 
     public Long addMapping(String tenant, MQTTMapping mapping) {
         MutableLong result = null;
-        subscriptionsService.runForTenant(tenant, () -> {
-            ArrayList<MQTTMapping> mappings = c8yAgent.getMQTTMappings();
-            if (MQTTMappingsRepresentation.checkTopicIsUnique(mappings, mapping)) {
-                mapping.lastUpdate = System.currentTimeMillis();
-                mapping.id = MQTTMappingsRepresentation.nextId(mappings);
-                mappings.add(mapping);
-                result.setValue(mapping.id);
-                ;
-            } else {
-                throw new RuntimeException("Topic name is not unique!");
-            }
-            try {
-                c8yAgent.saveMQTTMappings(mappings);
-            } catch (JsonProcessingException ex) {
-                log.error("Cound not process parse mappings as json: {}", ex);
-                throw new RuntimeException(ex);
-            }
-        });
+        ArrayList<MQTTMapping> mappings = c8yAgent.getMQTTMappings();
+        if (MQTTMappingsRepresentation.checkTopicIsUnique(mappings, mapping)) {
+            mapping.lastUpdate = System.currentTimeMillis();
+            mapping.id = MQTTMappingsRepresentation.nextId(mappings);
+            mappings.add(mapping);
+            result.setValue(mapping.id);
+        } else {
+            throw new RuntimeException("Topic name is not unique!");
+        }
+        try {
+            c8yAgent.saveMQTTMappings(mappings);
+        } catch (JsonProcessingException ex) {
+            log.error("Cound not process parse mappings as json: {}", ex);
+            throw new RuntimeException(ex);
+        }
         // update cached mappings
-        reloadMappings(tenant);
+        reloadMappings();
         return result.getValue();
     }
 
     public Long updateMapping(String tenant, Long id, MQTTMapping mapping) {
         MutableLong result = new MutableLong();
-        subscriptionsService.runForTenant(tenant, () -> {
-            ArrayList<MQTTMapping> mappings = c8yAgent.getMQTTMappings();
-            if (MQTTMappingsRepresentation.checkTopicIsUnique(mappings, mapping)) {
-                MutableInt i = new MutableInt(0);
-                mappings.forEach(m -> {
-                    if (m.id == id) {
-                        log.info("Update mapping with id: {}", m.id);
-                        m.copyFrom(mapping);
-                        m.lastUpdate = System.currentTimeMillis();
-                    }
-                    i.increment();
-                });
-                result.setValue(mapping.id);
-                ;
-            } else {
-                throw new RuntimeException("Topic name is not unique!");
-            }
-            try {
-                c8yAgent.saveMQTTMappings(mappings);
-            } catch (JsonProcessingException ex) {
-                log.error("Cound not process parse mappings as json: {}", ex);
-                throw new RuntimeException(ex);
-            }
-        });
+
+        ArrayList<MQTTMapping> mappings = c8yAgent.getMQTTMappings();
+        if (MQTTMappingsRepresentation.checkTopicIsUnique(mappings, mapping)) {
+            MutableInt i = new MutableInt(0);
+            mappings.forEach(m -> {
+                if (m.id == id) {
+                    log.info("Update mapping with id: {}", m.id);
+                    m.copyFrom(mapping);
+                    m.lastUpdate = System.currentTimeMillis();
+                }
+                i.increment();
+            });
+            result.setValue(mapping.id);
+            ;
+        } else {
+            throw new RuntimeException("Topic name is not unique!");
+        }
+        try {
+            c8yAgent.saveMQTTMappings(mappings);
+        } catch (JsonProcessingException ex) {
+            log.error("Cound not process parse mappings as json: {}", ex);
+            throw new RuntimeException(ex);
+        }
+  
         // update cached mappings
-        reloadMappings(tenant);
+        reloadMappings();
         return result.getValue();
     }
 
     public void runOperation(ServiceOperation operation) {
         if (operation.getOperation().equals(Operation.RELOAD)) {
-            reloadMappings(operation.getTenant());
+            reloadMappings();
         } else if (operation.getOperation().equals(Operation.CONNECT)) {
             connectToBroker();
         } else if (operation.getOperation().equals(Operation.DISCONNECT)) {
