@@ -32,7 +32,6 @@ import mqttagent.service.ServiceOperation;
 import mqttagent.service.ServiceStatus;
 
 @Slf4j
-@Component
 @RestController
 public class MQTTRestController {
 
@@ -50,8 +49,7 @@ public class MQTTRestController {
         C8yAgent c8yAgent;
         if (c8yAgents.get(te) == null){
             //c8yAgent = new C8yAgent(te);
-            c8yAgent = new C8yAgent();
-            c8yAgent.setTenant(te);
+            c8yAgent = new C8yAgent(te);
             c8yAgents.put(te, c8yAgent);
         } else {
             c8yAgent = c8yAgents.get(te);

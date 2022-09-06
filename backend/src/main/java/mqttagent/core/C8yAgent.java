@@ -48,7 +48,6 @@ import mqttagent.service.MQTTClient;
 import mqttagent.service.MQTTMappingsConverter;
 
 @Slf4j
-@Component
 @Service
 public class C8yAgent {
 
@@ -98,13 +97,11 @@ public class C8yAgent {
 
     private ArrayList<MQTTMapping> mqttMappings;
 
-    @EventListener
-    public void onSubscriptionAdded(MicroserviceSubscriptionAddedEvent event) {
-       String te = event.getCredentials().getTenant();
-       log.info("Event received for Tenant {} here!", te);
+    public C8yAgent(String tenant) {
+        this.tenant = tenant;
+        this.initPost();
     }
 
-    @PostConstruct
     public void initPost() {
         mqttClient.setC8yAgent(this);
         /* Connecting to Cumulocity */

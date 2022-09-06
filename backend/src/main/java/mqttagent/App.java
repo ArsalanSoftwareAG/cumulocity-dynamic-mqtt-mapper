@@ -32,9 +32,6 @@ public class App {
     @Autowired
     MQTTRestController controller;
 
-    @Autowired
-    C8yAgent agent;
-
     public static void main(String[] args) {
         SpringApplication.run(App.class, args);
     }
