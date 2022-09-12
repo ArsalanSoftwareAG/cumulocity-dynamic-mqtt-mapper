@@ -21,6 +21,9 @@ public class ConfigurationService {
     private final TenantOptionApi tenantOptionApi;
 
     @Autowired
+    private ObjectMapper objectMapper;
+
+    @Autowired
     public ConfigurationService(final TenantOptionApi tenantOptionApi) {
         this.tenantOptionApi = tenantOptionApi;
     }
@@ -45,7 +48,7 @@ public class ConfigurationService {
         option.setKey(OPTION_KEY_CONFIGURATION);
         try {
             final OptionRepresentation optionRepresentation = tenantOptionApi.getOption(option);
-            final MQTTConfiguration configuration = new ObjectMapper().readValue(optionRepresentation.getValue(), MQTTConfiguration.class);
+            final MQTTConfiguration configuration = objectMapper.readValue(optionRepresentation.getValue(), MQTTConfiguration.class);
             log.info("Returning configuration found: {}:", configuration.mqttHost );
             return configuration;
         } catch (SDKException exception) {

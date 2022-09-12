@@ -109,5 +109,6 @@ export class MQTTServiceConfigurationModule {
       console.log("Found MQTTAgent:", agent);
     });
     this.config.initializeMQTTAgent().then();
+    this.config.initializeWebSocket().then();
   }
 }
