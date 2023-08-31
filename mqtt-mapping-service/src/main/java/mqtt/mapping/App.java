@@ -122,19 +122,19 @@ public class App {
     }
 
     @Bean("payloadProcessorsInbound")
-    public Map<MappingType, BasePayloadProcessor<?>> payloadProcessorsInbound(ObjectMapper objectMapper,
+    public Map<MappingType, BasePayloadProcessor> payloadProcessorsInbound(ObjectMapper objectMapper,
             @Lazy MQTTClient mqttClient,
             @Lazy C8YAgent c8yAgent) {
         return Map.of(
-                MappingType.JSON, new JSONProcessor(objectMapper, mqttClient, c8yAgent),
-                MappingType.FLAT_FILE, new FlatFileProcessor(objectMapper, mqttClient, c8yAgent),
-                MappingType.GENERIC_BINARY, new GenericBinaryProcessor(objectMapper, mqttClient, c8yAgent),
-                MappingType.PROTOBUF_STATIC, new StaticProtobufProcessor(objectMapper, mqttClient, c8yAgent),
-                MappingType.PROCESSOR_EXTENSION, new ExtensibleProcessorInbound(objectMapper, mqttClient, c8yAgent));
+                MappingType.JSON, new JSONProcessor(objectMapper, c8yAgent),
+                MappingType.FLAT_FILE, new FlatFileProcessor(objectMapper, c8yAgent),
+                MappingType.GENERIC_BINARY, new GenericBinaryProcessor(objectMapper, c8yAgent),
+                MappingType.PROTOBUF_STATIC, new StaticProtobufProcessor(objectMapper, c8yAgent),
+                MappingType.PROCESSOR_EXTENSION, new ExtensibleProcessorInbound(objectMapper, c8yAgent));
     }
 
     @Bean("payloadProcessorsOutbound")
-    public Map<MappingType, BasePayloadProcessorOutbound<?>> payloadProcessorsOutbound(ObjectMapper objectMapper,
+    public Map<MappingType, BasePayloadProcessorOutbound> payloadProcessorsOutbound(ObjectMapper objectMapper,
             MQTTClient mqttClient,
             C8YAgent c8yAgent) {
         return Map.of(
@@ -162,9 +162,9 @@ public class App {
         final ObjectMapper mapper = baseObjectMapper();
 
         class SvensonDeserializers extends Deserializers.Base {
-            public JsonDeserializer<?> findBeanDeserializer(JavaType type, DeserializationConfig config,
+            public JsonDeserializer findBeanDeserializer(JavaType type, DeserializationConfig config,
                     BeanDescription beanDesc) {
-                final Class<?> rawClass = type.getRawClass();
+                final Class rawClass = type.getRawClass();
 
                 // base resource representation is deserialized using svenson
                 if (BaseResourceRepresentation.class.isAssignableFrom(rawClass)) {
@@ -184,9 +184,9 @@ public class App {
 
         class SvensonSerializers extends Serializers.Base {
             @Override
-            public JsonSerializer<?> findSerializer(final SerializationConfig config, final JavaType type,
+            public JsonSerializer findSerializer(final SerializationConfig config, final JavaType type,
                     BeanDescription beanDesc) {
-                final Class<?> rawClass = type.getRawClass();
+                final Class rawClass = type.getRawClass();
 
                 // gid is serialized using svenson
                 if (GId.class.isAssignableFrom(rawClass)) {

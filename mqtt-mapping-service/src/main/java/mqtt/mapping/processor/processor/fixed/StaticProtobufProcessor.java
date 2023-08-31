@@ -34,7 +34,6 @@ import mqtt.mapping.processor.inbound.BasePayloadProcessor;
 import mqtt.mapping.processor.model.MappingType;
 import mqtt.mapping.processor.model.ProcessingContext;
 import mqtt.mapping.processor.model.RepairStrategy;
-import mqtt.mapping.service.MQTTClient;
 import org.eclipse.paho.client.mqttv3.MqttMessage;
 import org.joda.time.DateTime;
 import org.springframework.stereotype.Service;
@@ -47,27 +46,27 @@ import java.util.Map;
 
 @Slf4j
 @Service
-public class StaticProtobufProcessor extends BasePayloadProcessor<byte[]> {
+public class StaticProtobufProcessor extends BasePayloadProcessor {
 
-    public StaticProtobufProcessor(ObjectMapper objectMapper, MQTTClient mqttClient, C8YAgent c8yAgent) {
-        super(objectMapper, mqttClient, c8yAgent);
+    public StaticProtobufProcessor(ObjectMapper objectMapper, C8YAgent c8yAgent) {
+        super(objectMapper, c8yAgent);
     }
 
     @Override
-    public ProcessingContext<byte[]> deserializePayload(ProcessingContext<byte[]> context, MqttMessage mqttMessage)
+    public ProcessingContext deserializePayload(ProcessingContext context, MqttMessage mqttMessage)
             throws IOException {
-        context.setPayload(mqttMessage.getPayload());
+        context.setPayloadRaw(mqttMessage.getPayload());
         return context;
     }
 
     @Override
-    public void extractFromSource(ProcessingContext<byte[]> context)
+    public void extractFromSource(ProcessingContext context)
             throws ProcessingException {
         if (MappingType.PROTOBUF_STATIC.equals(context.getMapping().mappingType)) {
             StaticCustomMeasurementOuter.StaticCustomMeasurement payloadProtobuf;
             try {
                 payloadProtobuf = StaticCustomMeasurementOuter.StaticCustomMeasurement
-                        .parseFrom((byte[]) context.getPayload());
+                        .parseFrom((byte[]) context.getPayloadRaw());
             } catch (InvalidProtocolBufferException e) {
                 throw new ProcessingException(e.getMessage());
             }

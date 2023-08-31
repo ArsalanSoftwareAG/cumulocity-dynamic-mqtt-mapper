@@ -44,7 +44,7 @@ import java.util.Map;
 
 @Slf4j
 @Component
-public class ProcessorExtensionInboundCustomMeasurement implements ProcessorExtensionInbound<byte[]> {
+public class ProcessorExtensionInboundCustomMeasurement implements ProcessorExtensionInbound{
 
         private ObjectMapper objectMapper;
         // @Autowired
@@ -57,12 +57,12 @@ public class ProcessorExtensionInboundCustomMeasurement implements ProcessorExte
         }
 
         @Override
-        public void extractFromSource(ProcessingContext<byte[]> context)
+        public void extractFromSource(ProcessingContext context)
                         throws ProcessingException {
 
                 JsonNode jsonNode;
                 try {
-                        jsonNode = objectMapper.readTree(context.getPayload());
+                        jsonNode = objectMapper.readTree(context.getPayloadRaw());
                 } catch (IOException e) {
                         throw new ProcessingException(e.getMessage());
                 }

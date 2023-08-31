@@ -66,7 +66,7 @@ public class SynchronousDispatcher implements MqttCallback {
     SysHandler sysHandler;
 
     @Autowired
-    Map<MappingType, BasePayloadProcessor<?>> payloadProcessorsInbound;
+    Map<MappingType, BasePayloadProcessor> payloadProcessorsInbound;
 
     @Autowired
     MappingComponent mappingComponent;
@@ -82,10 +82,10 @@ public class SynchronousDispatcher implements MqttCallback {
         }
     }
 
-    public List<ProcessingContext<?>> processMessage(String topic, MqttMessage mqttMessage, boolean sendPayload)
+    public List<ProcessingContext> processMessage(String topic, MqttMessage mqttMessage, boolean sendPayload)
             throws Exception {
         MappingStatus mappingStatusUnspecified = mappingComponent.getMappingStatus(Mapping.UNSPECIFIED_MAPPING);
-        List<ProcessingContext<?>> processingResult = new ArrayList<ProcessingContext<?>>();
+        List<ProcessingContext> processingResult = new ArrayList<ProcessingContext>();
 
         if (topic != null && !topic.startsWith("$SYS")) {
             if (mqttMessage.getPayload() != null) {
@@ -100,13 +100,8 @@ public class SynchronousDispatcher implements MqttCallback {
                 resolvedMappings.forEach(mapping -> {
                     MappingStatus mappingStatus = mappingComponent.getMappingStatus(mapping);
 
-                    ProcessingContext<?> context;
-                    if (mapping.mappingType.payloadType.equals(String.class)) {
-                        context = new ProcessingContext<String>();
-                    } else {
-                        context = new ProcessingContext<byte[]>();
+                    ProcessingContext context = new ProcessingContext();
 
-                    }
                     context.setTopic(topic);
                     context.setMappingType(mapping.mappingType);
                     context.setMapping(mapping);
@@ -120,7 +115,7 @@ public class SynchronousDispatcher implements MqttCallback {
                             processor.deserializePayload(context, mqttMessage);
                             if (c8yAgent.getServiceConfiguration().logPayload) {
                                 log.info("New message on topic: '{}', wrapped message: {}", context.getTopic(),
-                                        context.getPayload().toString());
+                                        context.getPayloadRaw().toString());
                             } else {
                                 log.info("New message on topic: '{}'", context.getTopic());
                             }
@@ -128,14 +123,11 @@ public class SynchronousDispatcher implements MqttCallback {
                             if (mapping.snoopStatus == SnoopStatus.ENABLED
                                     || mapping.snoopStatus == SnoopStatus.STARTED) {
                                 String serializedPayload = null;
-                                if (context.getPayload() instanceof JsonNode) {
+                                if (mappingType.payloadType.equals(JsonNode.class)) {
                                     serializedPayload = objectMapper
-                                            .writeValueAsString((JsonNode) context.getPayload());
-                                } else if (context.getPayload() instanceof String) {
-                                    serializedPayload = (String) context.getPayload();
-                                }
-                                if (context.getPayload() instanceof byte[]) {
-                                    serializedPayload = Hex.encodeHexString((byte[]) context.getPayload());
+                                            .writeValueAsString(context.getPayloadAsJson());
+                                } else {
+                                    serializedPayload = Hex.encodeHexString((byte[]) context.getPayloadRaw());
                                 }
 
                                 if (serializedPayload != null) {
@@ -149,7 +141,7 @@ public class SynchronousDispatcher implements MqttCallback {
                                 } else {
                                     log.warn(
                                             "Message could NOT be parsed, ignoring this message, as class is not valid: {}",
-                                            context.getPayload().getClass());
+                                            context.getPayloadRaw().getClass());
                                 }
                             } else {
                                 processor.extractFromSource(context);

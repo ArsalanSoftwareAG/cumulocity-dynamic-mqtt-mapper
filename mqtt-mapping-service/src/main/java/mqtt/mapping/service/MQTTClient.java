@@ -442,7 +442,7 @@ public class MQTTClient {
     }
 
 
-    public List<ProcessingContext<?>> test(String topic, boolean send, Map<String, Object> payload)
+    public List<ProcessingContext> test(String topic, boolean send, Map<String, Object> payload)
             throws Exception {
         String payloadMessage = objectMapper.writeValueAsString(payload);
         MqttMessage mqttMessage = new MqttMessage();
@@ -572,7 +572,7 @@ public class MQTTClient {
         return updatedMappings;
     }
 
-    public AbstractExtensibleRepresentation createMEAO(ProcessingContext<?> context)
+    public AbstractExtensibleRepresentation createMEAO(ProcessingContext context)
             throws MqttPersistenceException, MqttException {
         MqttMessage mqttMessage = new MqttMessage();
         String payload = context.getCurrentRequest().getRequest();

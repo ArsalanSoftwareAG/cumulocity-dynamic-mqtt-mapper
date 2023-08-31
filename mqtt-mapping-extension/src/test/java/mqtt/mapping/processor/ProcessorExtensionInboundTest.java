@@ -51,7 +51,7 @@ public class ProcessorExtensionInboundTest {
 
     ProcessorExtensionInboundCustomEvent extension = new ProcessorExtensionInboundCustomEvent();
     ProcessingContext context = new ProcessingContext();
-    context.setPayload(proto.toByteArray());
+    context.setPayloadRaw(proto.toByteArray());
     Mapping m1 = new Mapping();
     m1.setTargetAPI(API.EVENT);
     context.setMapping(m1);

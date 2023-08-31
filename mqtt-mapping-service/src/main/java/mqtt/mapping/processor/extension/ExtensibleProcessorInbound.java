@@ -30,7 +30,6 @@ import mqtt.mapping.model.ExtensionStatus;
 import mqtt.mapping.processor.ProcessingException;
 import mqtt.mapping.processor.inbound.BasePayloadProcessor;
 import mqtt.mapping.processor.model.ProcessingContext;
-import mqtt.mapping.service.MQTTClient;
 import org.eclipse.paho.client.mqttv3.MqttMessage;
 import org.springframework.stereotype.Service;
 
@@ -40,23 +39,23 @@ import java.util.Map;
 
 @Slf4j
 @Service
-public class ExtensibleProcessorInbound extends BasePayloadProcessor<byte[]> {
+public class ExtensibleProcessorInbound extends BasePayloadProcessor {
 
     private Map<String, Extension> extensions = new HashMap<>();
 
-    public ExtensibleProcessorInbound(ObjectMapper objectMapper, MQTTClient mqttClient, C8YAgent c8yAgent) {
-        super(objectMapper, mqttClient, c8yAgent);
+    public ExtensibleProcessorInbound(ObjectMapper objectMapper, C8YAgent c8yAgent) {
+        super(objectMapper, c8yAgent);
     }
 
     @Override
-    public ProcessingContext<byte[]> deserializePayload(ProcessingContext<byte[]> context, MqttMessage mqttMessage)
+    public ProcessingContext deserializePayload(ProcessingContext context, MqttMessage mqttMessage)
             throws IOException {
-        context.setPayload(mqttMessage.getPayload());
+        context.setPayloadRaw(mqttMessage.getPayload());
         return context;
     }
 
     @Override
-    public void extractFromSource(ProcessingContext<byte[]> context)
+    public void extractFromSource(ProcessingContext context)
             throws ProcessingException {
         ProcessorExtensionInbound extension = null;
         try {
@@ -81,7 +80,7 @@ public class ExtensibleProcessorInbound extends BasePayloadProcessor<byte[]> {
         extension.extractFromSource(context);
     }
 
-    public ProcessorExtensionInbound<?> getProcessorExtension(ExtensionEntry extension) {
+    public ProcessorExtensionInbound getProcessorExtension(ExtensionEntry extension) {
         String name = extension.getName();
         String event = extension.getEvent();
         return extensions.get(name).getExtensionEntries().get(event).getExtensionImplementation();

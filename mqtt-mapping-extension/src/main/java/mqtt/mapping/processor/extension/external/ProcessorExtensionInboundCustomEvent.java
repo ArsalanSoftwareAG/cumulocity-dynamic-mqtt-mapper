@@ -44,14 +44,14 @@ import mqtt.mapping.processor.model.RepairStrategy;
 
 @Slf4j
 @Component
-public class ProcessorExtensionInboundCustomEvent implements ProcessorExtensionInbound<byte[]> {
+public class ProcessorExtensionInboundCustomEvent implements ProcessorExtensionInbound{
     @Override
-    public void extractFromSource(ProcessingContext<byte[]> context)
+    public void extractFromSource(ProcessingContext context)
             throws ProcessingException {
         CustomEventOuter.CustomEvent payloadProtobuf;
         try {
             payloadProtobuf = CustomEventOuter.CustomEvent
-                    .parseFrom(context.getPayload());
+                    .parseFrom(context.getPayloadRaw());
         } catch (InvalidProtocolBufferException e) {
             throw new ProcessingException(e.getMessage());
         }

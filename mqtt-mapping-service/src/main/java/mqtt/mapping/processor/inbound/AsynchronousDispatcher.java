@@ -58,11 +58,11 @@ import mqtt.mapping.service.MQTTClient;
 @Service
 public class AsynchronousDispatcher implements MqttCallback {
 
-    public static class MappingProcessor<T> implements Callable<List<ProcessingContext<?>>> {
+    public static class MappingProcessor implements Callable<List<ProcessingContext>> {
 
         List<Mapping> resolvedMappings;
         String topic;
-        Map<MappingType, BasePayloadProcessor<T>> payloadProcessorsInbound;
+        Map<MappingType, BasePayloadProcessor> payloadProcessorsInbound;
         boolean sendPayload;
         MqttMessage mqttMessage;
         MappingComponent mappingStatusComponent;
@@ -71,7 +71,7 @@ public class AsynchronousDispatcher implements MqttCallback {
 
         public MappingProcessor(List<Mapping> mappings, MappingComponent mappingStatusComponent, C8YAgent c8yAgent,
                 String topic,
-                Map<MappingType, BasePayloadProcessor<T>> payloadProcessorsInbound, boolean sendPayload,
+                Map<MappingType, BasePayloadProcessor> payloadProcessorsInbound, boolean sendPayload,
                 MqttMessage mqttMessage, ObjectMapper objectMapper) {
             this.resolvedMappings = mappings;
             this.mappingStatusComponent = mappingStatusComponent;
@@ -84,8 +84,8 @@ public class AsynchronousDispatcher implements MqttCallback {
         }
 
         @Override
-        public List<ProcessingContext<?>> call() throws Exception {
-            List<ProcessingContext<?>> processingResult = new ArrayList<>();
+        public List<ProcessingContext> call() throws Exception {
+            List<ProcessingContext> processingResult = new ArrayList<>();
             MappingStatus mappingStatusUnspecified = mappingStatusComponent
                     .getMappingStatus(Mapping.UNSPECIFIED_MAPPING);
             resolvedMappings.forEach(mapping -> {
@@ -93,12 +93,8 @@ public class AsynchronousDispatcher implements MqttCallback {
                 if (mapping.isActive()) {
                     MappingStatus mappingStatus = mappingStatusComponent.getMappingStatus(mapping);
 
-                    ProcessingContext<?> context;
-                    if (mapping.mappingType.payloadType.equals(String.class)) {
-                        context = new ProcessingContext<String>();
-                    } else {
-                        context = new ProcessingContext<byte[]>();
-                    }
+                    ProcessingContext context = new ProcessingContext();
+
                     context.setTopic(topic);
                     context.setMappingType(mapping.mappingType);
                     context.setMapping(mapping);
@@ -112,7 +108,7 @@ public class AsynchronousDispatcher implements MqttCallback {
                             processor.deserializePayload(context, mqttMessage);
                             if (c8yAgent.getServiceConfiguration().logPayload) {
                                 log.info("New message on topic: '{}', wrapped message: {}", context.getTopic(),
-                                        context.getPayload().toString());
+                                        context.getPayloadRaw().toString());
                             } else {
                                 log.info("New message on topic: '{}'", context.getTopic());
                             }
@@ -120,14 +116,11 @@ public class AsynchronousDispatcher implements MqttCallback {
                             if (mapping.snoopStatus == SnoopStatus.ENABLED
                                     || mapping.snoopStatus == SnoopStatus.STARTED) {
                                 String serializedPayload = null;
-                                if (context.getPayload() instanceof JsonNode) {
+                                if (mappingType.payloadType.equals(JsonNode.class)) {
                                     serializedPayload = objectMapper
-                                            .writeValueAsString((JsonNode) context.getPayload());
-                                } else if (context.getPayload() instanceof String) {
-                                    serializedPayload = (String) context.getPayload();
-                                }
-                                if (context.getPayload() instanceof byte[]) {
-                                    serializedPayload = Hex.encodeHexString((byte[]) context.getPayload());
+                                            .writeValueAsString(context.getPayloadAsJson());
+                                } else {
+                                    serializedPayload = Hex.encodeHexString((byte[]) context.getPayloadRaw());
                                 }
 
                                 if (serializedPayload != null) {
@@ -143,7 +136,7 @@ public class AsynchronousDispatcher implements MqttCallback {
                                 } else {
                                     log.warn(
                                             "Message could NOT be parsed, ignoring this message, as class is not valid: {}",
-                                            context.getPayload().getClass());
+                                            context.getPayloadRaw().getClass());
                                 }
                             } else {
                                 processor.extractFromSource(context);
@@ -199,7 +192,7 @@ public class AsynchronousDispatcher implements MqttCallback {
     SysHandler sysHandler;
 
     @Autowired
-    Map<MappingType, BasePayloadProcessor<?>> payloadProcessorsInbound;
+    Map<MappingType, BasePayloadProcessor> payloadProcessorsInbound;
 
     @Autowired
     @Qualifier("cachedThreadPool")
@@ -219,10 +212,10 @@ public class AsynchronousDispatcher implements MqttCallback {
         }
     }
 
-    public Future<List<ProcessingContext<?>>> processMessage(String topic, MqttMessage mqttMessage,
+    public Future<List<ProcessingContext>> processMessage(String topic, MqttMessage mqttMessage,
             boolean sendPayload) throws Exception {
         MappingStatus mappingStatusUnspecified = mappingComponent.getMappingStatus(Mapping.UNSPECIFIED_MAPPING);
-        Future<List<ProcessingContext<?>>> futureProcessingResult = null;
+        Future<List<ProcessingContext>> futureProcessingResult = null;
         List<Mapping> resolvedMappings = new ArrayList<>();
 
         if (topic != null && !topic.startsWith("$SYS")) {

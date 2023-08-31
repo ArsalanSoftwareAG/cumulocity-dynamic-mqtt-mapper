@@ -41,14 +41,14 @@ import java.util.Map;
 
 @Slf4j
 @Component
-public class ProcessorExtensionInternalCustomAlarm implements ProcessorExtensionInbound<byte[]> {
+public class ProcessorExtensionInternalCustomAlarm implements ProcessorExtensionInbound {
     @Override
-    public void extractFromSource(ProcessingContext<byte[]> context)
+    public void extractFromSource(ProcessingContext context)
             throws ProcessingException {
         InternalCustomAlarmOuter.InternalCustomAlarm payloadProtobuf;
         try {
             payloadProtobuf = InternalCustomAlarmOuter.InternalCustomAlarm
-                    .parseFrom(context.getPayload());
+                    .parseFrom(context.getPayloadRaw());
         } catch (InvalidProtocolBufferException e) {
             throw new ProcessingException(e.getMessage());
         }

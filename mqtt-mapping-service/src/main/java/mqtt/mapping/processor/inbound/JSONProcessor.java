@@ -52,25 +52,26 @@ import java.util.Map;
 
 @Slf4j
 @Service
-public class JSONProcessor extends BasePayloadProcessor<JsonNode> {
+public class JSONProcessor extends BasePayloadProcessor {
 
-    public JSONProcessor ( ObjectMapper objectMapper, MQTTClient mqttClient, C8YAgent c8yAgent){
-        super(objectMapper, mqttClient, c8yAgent);
+    public JSONProcessor ( ObjectMapper objectMapper, C8YAgent c8yAgent){
+        super(objectMapper, c8yAgent);
     }
 
     @Override
-    public ProcessingContext<JsonNode> deserializePayload(ProcessingContext<JsonNode> context,
+    public ProcessingContext deserializePayload(ProcessingContext context,
             MqttMessage mqttMessage) throws IOException {
         JsonNode jsonNode = objectMapper.readTree(mqttMessage.getPayload());
-        context.setPayload(jsonNode);
+        context.setPayloadAsJson(jsonNode);
+        context.setPayloadRaw(mqttMessage.getPayload());
         return context;
     }
 
     @Override
-    public void extractFromSource(ProcessingContext<JsonNode> context)
+    public void extractFromSource(ProcessingContext context)
             throws ProcessingException {
         Mapping mapping = context.getMapping();
-        JsonNode payloadJsonNode = context.getPayload();
+        JsonNode payloadJsonNode = context.getPayloadAsJson();
         Map<String, List<SubstituteValue>> postProcessingCache = context.getPostProcessingCache();
 
         /*

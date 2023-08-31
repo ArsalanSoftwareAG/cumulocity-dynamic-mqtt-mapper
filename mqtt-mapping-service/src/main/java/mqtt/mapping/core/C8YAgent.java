@@ -168,10 +168,10 @@ public class C8YAgent implements ImportBeanDefinitionRegistrar {
         this.extensions = extensions;
     }
 
-    Map<MappingType, BasePayloadProcessor<?>> payloadProcessorsInbound;
+    Map<MappingType, BasePayloadProcessor> payloadProcessorsInbound;
 
     @Autowired
-    public void setPayloadProcessorsInbound(Map<MappingType, BasePayloadProcessor<?>> payloadProcessorsInbound) {
+    public void setPayloadProcessorsInbound(Map<MappingType, BasePayloadProcessor> payloadProcessorsInbound) {
         this.payloadProcessorsInbound = payloadProcessorsInbound;
     }
 
@@ -314,7 +314,7 @@ public class C8YAgent implements ImportBeanDefinitionRegistrar {
         return measurementRepresentation;
     }
 
-    public ExternalIDRepresentation resolveExternalId2GlobalId(ID identity, ProcessingContext<?> context) {
+    public ExternalIDRepresentation resolveExternalId2GlobalId(ID identity, ProcessingContext context) {
         if (identity.getType() == null) {
             identity.setType("c8y_Serial");
         }
@@ -329,7 +329,7 @@ public class C8YAgent implements ImportBeanDefinitionRegistrar {
         return result;
     }
 
-    public ExternalIDRepresentation resolveGlobalId2ExternalId(GId gid, String idType, ProcessingContext<?> context) {
+    public ExternalIDRepresentation resolveGlobalId2ExternalId(GId gid, String idType, ProcessingContext context) {
         if (idType == null) {
             idType = "c8y_Serial";
         }
@@ -406,7 +406,7 @@ public class C8YAgent implements ImportBeanDefinitionRegistrar {
         return new MQTTClient.Certificate(result.getFingerprint(), cert.toString());
     }
 
-    public AbstractExtensibleRepresentation createMEAO(ProcessingContext<?> context) throws ProcessingException {
+    public AbstractExtensibleRepresentation createMEAO(ProcessingContext context) throws ProcessingException {
         StringBuffer error = new StringBuffer("");
         C8YRequest currentRequest = context.getCurrentRequest();
         String payload = currentRequest.getRequest();
@@ -452,7 +452,7 @@ public class C8YAgent implements ImportBeanDefinitionRegistrar {
         return result;
     }
 
-    public ManagedObjectRepresentation upsertDevice(ID identity, ProcessingContext<?> context)
+    public ManagedObjectRepresentation upsertDevice(ID identity, ProcessingContext context)
             throws ProcessingException {
         StringBuffer error = new StringBuffer("");
         C8YRequest currentRequest = context.getCurrentRequest();
@@ -549,10 +549,10 @@ public class C8YAgent implements ImportBeanDefinitionRegistrar {
             newExtensions.load(buffered);
         log.info("Preparing to load extensions:" + newExtensions.toString());
 
-        Enumeration<?> extensions = newExtensions.propertyNames();
+        Enumeration extensions = newExtensions.propertyNames();
         while (extensions.hasMoreElements()) {
             String key = (String) extensions.nextElement();
-            Class<?> clazz;
+            Class clazz;
             ExtensionEntry extensionEntry = new ExtensionEntry(key, newExtensions.getProperty(key),
                     null, true, "OK");
             extensibleProcessor.addExtensionEntry(extName, extensionEntry);
@@ -573,7 +573,7 @@ public class C8YAgent implements ImportBeanDefinitionRegistrar {
                         log.warn(msg);
                         extensionEntry.setLoaded(false);
                     } else {
-                        ProcessorExtensionInbound<?> extensionImpl = (ProcessorExtensionInbound<?>) clazz
+                        ProcessorExtensionInbound extensionImpl = (ProcessorExtensionInbound) clazz
                                 .getDeclaredConstructor()
                                 .newInstance();
                         // springUtil.registerBean(key, clazz);

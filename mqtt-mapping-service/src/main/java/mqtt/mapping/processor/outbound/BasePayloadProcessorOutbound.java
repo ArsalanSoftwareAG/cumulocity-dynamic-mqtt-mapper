@@ -21,9 +21,7 @@
 
 package mqtt.mapping.processor.outbound;
 
-import com.cumulocity.model.idtype.GId;
 import com.cumulocity.rest.representation.AbstractExtensibleRepresentation;
-import com.cumulocity.rest.representation.identity.ExternalIDRepresentation;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.databind.node.TextNode;
 import com.jayway.jsonpath.DocumentContext;
@@ -55,7 +53,7 @@ import java.util.Set;
 
 @Slf4j
 @Service
-public abstract class BasePayloadProcessorOutbound<T> {
+public abstract class BasePayloadProcessorOutbound {
 
     public BasePayloadProcessorOutbound(ObjectMapper objectMapper, MQTTClient mqttClient, C8YAgent c8yAgent) {
         this.objectMapper = objectMapper;
@@ -77,12 +75,12 @@ public abstract class BasePayloadProcessorOutbound<T> {
 
     public static final String TIME = "time";
 
-    public abstract ProcessingContext<T> deserializePayload(ProcessingContext<T> context, C8YMessage c8yMessage)
+    public abstract ProcessingContext deserializePayload(ProcessingContext context, C8YMessage c8yMessage)
             throws IOException;
 
-    public abstract void extractFromSource(ProcessingContext<T> context) throws ProcessingException;
+    public abstract void extractFromSource(ProcessingContext context) throws ProcessingException;
 
-    public ProcessingContext<T> substituteInTargetAndSend(ProcessingContext<T> context) {
+    public ProcessingContext substituteInTargetAndSend(ProcessingContext context) {
         /*
          * step 3 replace target with extract content from outbound payload
          */

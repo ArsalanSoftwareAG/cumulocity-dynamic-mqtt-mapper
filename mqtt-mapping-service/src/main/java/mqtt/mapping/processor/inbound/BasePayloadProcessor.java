@@ -56,19 +56,16 @@ import java.util.Map.Entry;
 
 @Slf4j
 @Service
-public abstract class BasePayloadProcessor<T> {
+public abstract class BasePayloadProcessor {
 
-    public BasePayloadProcessor(ObjectMapper objectMapper, MQTTClient mqttClient, C8YAgent c8yAgent) {
+    public BasePayloadProcessor(ObjectMapper objectMapper, C8YAgent c8yAgent) {
         this.objectMapper = objectMapper;
-        this.mqttClient = mqttClient;
         this.c8yAgent = c8yAgent;
     }
 
     protected C8YAgent c8yAgent;
 
     protected ObjectMapper objectMapper;
-
-    protected MQTTClient mqttClient;
 
     @Autowired
     SysHandler sysHandler;
@@ -78,12 +75,12 @@ public abstract class BasePayloadProcessor<T> {
 
     public static final String TIME = "time";
 
-    public abstract ProcessingContext<T> deserializePayload(ProcessingContext<T> context, MqttMessage mqttMessage)
+    public abstract ProcessingContext deserializePayload(ProcessingContext context, MqttMessage mqttMessage)
             throws IOException;
 
-    public abstract void extractFromSource(ProcessingContext<T> context) throws ProcessingException;
+    public abstract void extractFromSource(ProcessingContext context) throws ProcessingException;
 
-    public ProcessingContext<T> substituteInTargetAndSend(ProcessingContext<T> context) {
+    public ProcessingContext substituteInTargetAndSend(ProcessingContext context) {
         /*
          * step 3 replace target with extract content from inbound payload
          */

@@ -42,7 +42,7 @@ public class InventoryFacade {
     @Autowired
     private InventoryApi inventoryApi;
 
-    public ManagedObjectRepresentation create(ManagedObjectRepresentation mor, ProcessingContext<?> context) {
+    public ManagedObjectRepresentation create(ManagedObjectRepresentation mor, ProcessingContext context) {
         if (context == null || context.isSendPayload()) {
             return inventoryApi.create(mor);
         } else {
@@ -58,7 +58,7 @@ public class InventoryFacade {
         inventoryApi.delete(id);
     }
 
-    public ManagedObjectRepresentation update(ManagedObjectRepresentation mor, ProcessingContext<?> context) {
+    public ManagedObjectRepresentation update(ManagedObjectRepresentation mor, ProcessingContext context) {
         if (context == null || context.isSendPayload()) {
             return inventoryApi.update(mor);
         } else {

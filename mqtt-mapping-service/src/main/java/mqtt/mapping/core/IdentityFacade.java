@@ -48,7 +48,7 @@ public class IdentityFacade {
     @Autowired
     private IdentityApi identityApi;
 
-    public ExternalIDRepresentation create(ManagedObjectRepresentation mor, ID id, ProcessingContext<?> context) {
+    public ExternalIDRepresentation create(ManagedObjectRepresentation mor, ID id, ProcessingContext context) {
         ExternalIDRepresentation externalIDRepresentation = new ExternalIDRepresentation();
         externalIDRepresentation.setType(id.getType());
         externalIDRepresentation.setExternalId(id.getValue());
@@ -60,7 +60,7 @@ public class IdentityFacade {
         }
     }
 
-    public ExternalIDRepresentation resolveExternalId2GlobalId(ID externalID, ProcessingContext<?> context) {
+    public ExternalIDRepresentation resolveExternalId2GlobalId(ID externalID, ProcessingContext context) {
         if (context == null || context.isSendPayload()) {
             return identityApi.getExternalId(externalID);
         } else {
@@ -69,7 +69,7 @@ public class IdentityFacade {
     }
 
     public ExternalIDRepresentation resolveGlobalId2ExternalId(GId gid, String externalIdType,
-            ProcessingContext<?> context) {
+            ProcessingContext context) {
         if (context == null || context.isSendPayload()) {
             MutableObject<ExternalIDRepresentation> result = new MutableObject<ExternalIDRepresentation>(null);
             ExternalIDCollection collection = identityApi.getExternalIdsOfGlobalId(gid);

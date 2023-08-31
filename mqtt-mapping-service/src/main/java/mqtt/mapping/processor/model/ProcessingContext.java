@@ -33,6 +33,8 @@ import java.util.Map.Entry;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
+import com.fasterxml.jackson.databind.JsonNode;
+
 @Getter
 @Setter
 @NoArgsConstructor
@@ -43,16 +45,16 @@ import java.util.stream.Stream;
  * <code>cardinality</code>, <code>needsRepair</code>
  * when a <code>mapping</code> is applied to an inbound <code>payload</code>
  */
-public class ProcessingContext<O> {
+public class ProcessingContext {
     private Mapping mapping;
 
     private String topic;
 
     private String resolvedPublishTopic;
 
-    private O payload;
-
     private byte[] payloadRaw;
+
+    private JsonNode payloadAsJson;
 
     private List<C8YRequest> requests = new ArrayList<C8YRequest>();
 
