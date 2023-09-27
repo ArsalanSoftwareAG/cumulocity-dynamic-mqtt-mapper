@@ -44,8 +44,12 @@ public class ExtensibleProcessorInbound extends BasePayloadProcessor<byte[]> {
 
     private Map<String, Extension> extensions = new HashMap<>();
 
-    public ExtensibleProcessorInbound(ObjectMapper objectMapper, MQTTClient mqttClient, C8YAgent c8yAgent) {
-        super(objectMapper, mqttClient, c8yAgent);
+    public ExtensibleProcessorInbound(ObjectMapper objectMapper,
+    // MQTTClient mqttClient,
+    C8YAgent c8yAgent) {
+        super(objectMapper,
+        // mqttClient,
+        c8yAgent);
     }
 
     @Override

@@ -80,7 +80,7 @@ public abstract class BasePayloadProcessorOutbound<T> {
     public abstract ProcessingContext<T> deserializePayload(ProcessingContext<T> context, C8YMessage c8yMessage)
             throws IOException;
 
-    public abstract void extractFromSource(ProcessingContext<T> context) throws ProcessingException;
+    public abstract void extractFromSource(String tenant, ProcessingContext<T> context) throws ProcessingException;
 
     public ProcessingContext<T> substituteInTargetAndSend(ProcessingContext<T> context) {
         /*

@@ -95,6 +95,7 @@ import mqtt.mapping.processor.model.C8YRequest;
 import mqtt.mapping.processor.model.MappingType;
 import mqtt.mapping.processor.model.ProcessingContext;
 import mqtt.mapping.service.MQTTClient;
+import mqtt.mapping.service.MQTTClientManager;
 
 @Slf4j
 @Service
@@ -126,40 +127,31 @@ public class C8YAgent implements ImportBeanDefinitionRegistrar {
     @Autowired
     private MicroserviceSubscriptionsService subscriptionsService;
 
-    private MQTTClient mqttClient;
+    @Autowired
+    private MQTTClientManager mqttClientManager;
+
+    // private MQTTClient mqttClient;
+
+    // @Autowired
+    // public void setMQTTClient(@Lazy MQTTClient mqttClient) {
+    //     this.mqttClient = mqttClient;
+    // }
 
     @Autowired
-    public void setMQTTClient(@Lazy MQTTClient mqttClient) {
-        this.mqttClient = mqttClient;
-    }
-
     private ObjectMapper objectMapper;
 
+    // private ConnectionConfigurationComponent connectionConfigurationComponent;
+
+    // @Autowired
+    // public void setConnectionConfigurationComponent(ConnectionConfigurationComponent connectionConfigurationComponent) {
+    //     this.connectionConfigurationComponent = connectionConfigurationComponent;
+    // }
+
     @Autowired
-    public void setObjectMapper(ObjectMapper objectMapper) {
-        this.objectMapper = objectMapper;
-    }
-
-    private ConnectionConfigurationComponent connectionConfigurationComponent;
-
-    @Autowired
-    public void setConnectionConfigurationComponent(ConnectionConfigurationComponent connectionConfigurationComponent) {
-        this.connectionConfigurationComponent = connectionConfigurationComponent;
-    }
-
     private ServiceConfigurationComponent serviceConfigurationComponent;
 
     @Autowired
-    public void setServiceConfigurationComponent(ServiceConfigurationComponent serviceConfigurationComponent) {
-        this.serviceConfigurationComponent = serviceConfigurationComponent;
-    }
-
     private MappingComponent mappingComponent;
-
-    @Autowired
-    public void setMappingComponent(MappingComponent mappingComponent) {
-        this.mappingComponent = mappingComponent;
-    }
 
     private ExtensionsComponent extensions;
 
@@ -192,12 +184,6 @@ public class C8YAgent implements ImportBeanDefinitionRegistrar {
 
     @Getter
     @Setter
-    private String tenant = null;
-
-    private MicroserviceCredentials credentials;
-
-    @Getter
-    @Setter
     private ServiceConfiguration serviceConfiguration;
 
     private static final String EXTENSION_INTERNAL_FILE = "extension-internal.properties";
@@ -205,27 +191,29 @@ public class C8YAgent implements ImportBeanDefinitionRegistrar {
 
     @EventListener
     public void destroy(MicroserviceSubscriptionRemovedEvent event) {
+        String tenant = event.getTenant();
         log.info("Microservice unsubscribed for tenant {}", event.getTenant());
         // this.createEvent("MQTT Mapper Microservice terminated",
         // "mqtt_microservice_stopevent", DateTime.now(), null);
         notificationSubscriber.disconnect(null);
-        if (mqttClient != null)
-            mqttClient.disconnect();
+        if (mqttClientManager.getMqttClient(tenant) != null)
+            mqttClientManager.getMqttClient(tenant).disconnect();
     }
 
     @EventListener
     public void initialize(MicroserviceSubscriptionAddedEvent event) {
-        tenant = event.getCredentials().getTenant();
-        mappingComponent.setTenant(tenant);
-        serviceConfigurationComponent.setTenant(tenant);
-        connectionConfigurationComponent.setTenant(tenant);
+        String tenant = event.getCredentials().getTenant();
+        // mappingComponent.setTenant(tenant);
+        // serviceConfigurationComponent.setTenant(tenant);
+        // connectionConfigurationComponent.setTenant(tenant);
 
-        credentials = event.getCredentials();
+        // credentials = event.getCredentials();
         log.info("Event received for Tenant {}", tenant);
         TimeZone.setDefault(TimeZone.getTimeZone("Europe/Berlin"));
         // register agent
         mappingServiceMOR = subscriptionsService.callForTenant(tenant, () -> {
             ExternalIDRepresentation mappingServiceIdRepresentation = resolveExternalId2GlobalId(
+                        tenant,
                         new ID(null, MappingServiceRepresentation.AGENT_ID),
                         null);;
             ManagedObjectRepresentation amo = new ManagedObjectRepresentation();
@@ -274,11 +262,13 @@ public class C8YAgent implements ImportBeanDefinitionRegistrar {
             return amo;
 
         });
-        serviceConfiguration = serviceConfigurationComponent.loadServiceConfiguration();
+        serviceConfiguration = serviceConfigurationComponent.loadServiceConfiguration(tenant);
         loadProcessorExtensions();
         mappingServiceRepresentation = objectMapper.convertValue(mappingServiceMOR, MappingServiceRepresentation.class);
-        mappingComponent.initializeMappingComponent(mappingServiceRepresentation);
+        mappingComponent.initializeMappingComponent(tenant, mappingServiceRepresentation);
 
+        mqttClientManager.initializeMqttClientFor(tenant);
+        MQTTClient mqttClient = mqttClientManager.getMqttClient(tenant);
         try {
             mqttClient.submitInitialize();
             mqttClient.submitConnect();
@@ -289,7 +279,7 @@ public class C8YAgent implements ImportBeanDefinitionRegistrar {
         }
     }
 
-    public MeasurementRepresentation storeMeasurement(ManagedObjectRepresentation mor,
+    public MeasurementRepresentation storeMeasurement(String tenant, ManagedObjectRepresentation mor,
             String eventType, DateTime timestamp, Map<String, Object> attributes, Map<String, Object> fragments)
             throws SDKException {
 
@@ -311,7 +301,7 @@ public class C8YAgent implements ImportBeanDefinitionRegistrar {
         return measurementRepresentation;
     }
 
-    public ExternalIDRepresentation resolveExternalId2GlobalId(ID identity, ProcessingContext<?> context) {
+    public ExternalIDRepresentation resolveExternalId2GlobalId(String tenant, ID identity, ProcessingContext<?> context) {
         if (identity.getType() == null) {
             identity.setType("c8y_Serial");
         }
@@ -326,7 +316,7 @@ public class C8YAgent implements ImportBeanDefinitionRegistrar {
         return result;
     }
 
-    public ExternalIDRepresentation resolveGlobalId2ExternalId(GId gid, String idType, ProcessingContext<?> context) {
+    public ExternalIDRepresentation resolveGlobalId2ExternalId(String tenant, GId gid, String idType, ProcessingContext<?> context) {
         if (idType == null) {
             idType = "c8y_Serial";
         }
@@ -346,7 +336,7 @@ public class C8YAgent implements ImportBeanDefinitionRegistrar {
         return mappingServiceMOR;
     }
 
-    public MeasurementRepresentation createMeasurement(String name, String type, ManagedObjectRepresentation mor,
+    public MeasurementRepresentation createMeasurement(String tenant, String name, String type, ManagedObjectRepresentation mor,
             DateTime dateTime, HashMap<String, MeasurementValue> mvMap) {
         MeasurementRepresentation measurementRepresentation = new MeasurementRepresentation();
         subscriptionsService.runForTenant(tenant, () -> {
@@ -365,22 +355,22 @@ public class C8YAgent implements ImportBeanDefinitionRegistrar {
         return measurementRepresentation;
     }
 
-    public AlarmRepresentation createAlarm(String severity, String message, String type, DateTime alarmTime,
-            ManagedObjectRepresentation parentMor) {
-        AlarmRepresentation alarmRepresentation = subscriptionsService.callForTenant(tenant, () -> {
-            AlarmRepresentation ar = new AlarmRepresentation();
-            ar.setSeverity(severity);
-            ar.setSource(parentMor);
-            ar.setText(message);
-            ar.setDateTime(alarmTime);
-            ar.setStatus("ACTIVE");
-            ar.setType(type);
-            return this.alarmApi.create(ar);
-        });
-        return alarmRepresentation;
-    }
+    // public AlarmRepresentation createAlarm(String tenant, String severity, String message, String type, DateTime alarmTime,
+    //         ManagedObjectRepresentation parentMor) {
+    //     AlarmRepresentation alarmRepresentation = subscriptionsService.callForTenant(tenant, () -> {
+    //         AlarmRepresentation ar = new AlarmRepresentation();
+    //         ar.setSeverity(severity);
+    //         ar.setSource(parentMor);
+    //         ar.setText(message);
+    //         ar.setDateTime(alarmTime);
+    //         ar.setStatus("ACTIVE");
+    //         ar.setType(type);
+    //         return this.alarmApi.create(ar);
+    //     });
+    //     return alarmRepresentation;
+    // }
 
-    public void createEvent(String message, String type, DateTime eventTime, ManagedObjectRepresentation parentMor) {
+    public void createEvent(String tenant, String message, String type, DateTime eventTime, ManagedObjectRepresentation parentMor) {
         subscriptionsService.runForTenant(tenant, () -> {
             EventRepresentation er = new EventRepresentation();
             er.setSource(parentMor != null ? parentMor : mappingServiceMOR);
@@ -391,19 +381,19 @@ public class C8YAgent implements ImportBeanDefinitionRegistrar {
         });
     }
 
-    public MQTTClient.Certificate loadCertificateByName(String fingerprint) {
-        TrustedCertificateRepresentation result = subscriptionsService.callForTenant(tenant, () -> {
-            return serviceConfigurationComponent.loadCertificateByName(fingerprint, credentials);
-        });
-        log.info("Found certificate with fingerprint: {}", result.getFingerprint());
-        StringBuffer cert = new StringBuffer("-----BEGIN CERTIFICATE-----\n")
-                .append(result.getCertInPemFormat())
-                .append("\n").append("-----END CERTIFICATE-----");
+    // public MQTTClient.Certificate loadCertificateByName(String fingerprint) {
+    //     TrustedCertificateRepresentation result = subscriptionsService.callForTenant(tenant, () -> {
+    //         return serviceConfigurationComponent.loadCertificateByName(fingerprint, credentials);
+    //     });
+    //     log.info("Found certificate with fingerprint: {}", result.getFingerprint());
+    //     StringBuffer cert = new StringBuffer("-----BEGIN CERTIFICATE-----\n")
+    //             .append(result.getCertInPemFormat())
+    //             .append("\n").append("-----END CERTIFICATE-----");
 
-        return new MQTTClient.Certificate(result.getFingerprint(), cert.toString());
-    }
+    //     return new MQTTClient.Certificate(result.getFingerprint(), cert.toString());
+    // }
 
-    public AbstractExtensibleRepresentation createMEAO(ProcessingContext<?> context) throws ProcessingException {
+    public AbstractExtensibleRepresentation createMEAO(String tenant, ProcessingContext<?> context) throws ProcessingException {
         StringBuffer error = new StringBuffer("");
         C8YRequest currentRequest = context.getCurrentRequest();
         String payload = currentRequest.getRequest();
@@ -449,7 +439,7 @@ public class C8YAgent implements ImportBeanDefinitionRegistrar {
         return result;
     }
 
-    public ManagedObjectRepresentation upsertDevice(ID identity, ProcessingContext<?> context)
+    public ManagedObjectRepresentation upsertDevice(String tenant, ID identity, ProcessingContext<?> context)
             throws ProcessingException {
         StringBuffer error = new StringBuffer("");
         C8YRequest currentRequest = context.getCurrentRequest();
@@ -457,7 +447,7 @@ public class C8YAgent implements ImportBeanDefinitionRegistrar {
             ManagedObjectRepresentation mor = objectMapper.readValue(currentRequest.getRequest(),
                     ManagedObjectRepresentation.class);
             try {
-                ExternalIDRepresentation extId = resolveExternalId2GlobalId(identity, context);
+                ExternalIDRepresentation extId = resolveExternalId2GlobalId(tenant, identity, context);
                 if (extId == null) {
                     // Device does not exist
                     // append external id to name
@@ -613,7 +603,7 @@ public class C8YAgent implements ImportBeanDefinitionRegistrar {
         loadProcessorExtensions();
     }
 
-    public ManagedObjectRepresentation getManagedObjectForId(String deviceId) {
+    public ManagedObjectRepresentation getManagedObjectForId(String tenant, String deviceId) {
         ManagedObjectRepresentation device = subscriptionsService.callForTenant(tenant, () -> {
             try {
                 return inventoryApi.get(GId.asGId(deviceId));
@@ -626,7 +616,7 @@ public class C8YAgent implements ImportBeanDefinitionRegistrar {
         return device;
     }
 
-    public void updateOperationStatus(OperationRepresentation op, OperationStatus status, String failureReason) {
+    public void updateOperationStatus(String tenant, OperationRepresentation op, OperationStatus status, String failureReason) {
         subscriptionsService.runForTenant(tenant, () -> {
             try {
                 op.setStatus(status.toString());
@@ -640,7 +630,7 @@ public class C8YAgent implements ImportBeanDefinitionRegistrar {
         });
     }
 
-    public void notificationSubscriberReconnect() {
+    public void notificationSubscriberReconnect(String tenant) {
         subscriptionsService.runForTenant(tenant, () -> {
             // notificationSubscriber.disconnect(false);
             // notificationSubscriber.reconnect();

@@ -126,11 +126,11 @@ public class App {
             @Lazy MQTTClient mqttClient,
             @Lazy C8YAgent c8yAgent) {
         return Map.of(
-                MappingType.JSON, new JSONProcessor(objectMapper, mqttClient, c8yAgent),
-                MappingType.FLAT_FILE, new FlatFileProcessor(objectMapper, mqttClient, c8yAgent),
-                MappingType.GENERIC_BINARY, new GenericBinaryProcessor(objectMapper, mqttClient, c8yAgent),
-                MappingType.PROTOBUF_STATIC, new StaticProtobufProcessor(objectMapper, mqttClient, c8yAgent),
-                MappingType.PROCESSOR_EXTENSION, new ExtensibleProcessorInbound(objectMapper, mqttClient, c8yAgent));
+                MappingType.JSON, new JSONProcessor(objectMapper, c8yAgent),
+                MappingType.FLAT_FILE, new FlatFileProcessor(objectMapper, c8yAgent),
+                MappingType.GENERIC_BINARY, new GenericBinaryProcessor(objectMapper, c8yAgent),
+                MappingType.PROTOBUF_STATIC, new StaticProtobufProcessor(objectMapper, c8yAgent),
+                MappingType.PROCESSOR_EXTENSION, new ExtensibleProcessorInbound(objectMapper, c8yAgent));
     }
 
     @Bean("payloadProcessorsOutbound")

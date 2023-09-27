@@ -54,8 +54,12 @@ import java.util.Map;
 @Service
 public class JSONProcessor extends BasePayloadProcessor<JsonNode> {
 
-    public JSONProcessor ( ObjectMapper objectMapper, MQTTClient mqttClient, C8YAgent c8yAgent){
-        super(objectMapper, mqttClient, c8yAgent);
+    public JSONProcessor ( ObjectMapper objectMapper,
+    // MQTTClient mqttClient,
+    C8YAgent c8yAgent){
+        super(objectMapper,
+        // mqttClient,
+        c8yAgent);
     }
 
     @Override

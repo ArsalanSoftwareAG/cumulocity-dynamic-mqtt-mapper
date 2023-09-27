@@ -22,6 +22,8 @@
 package mqtt.mapping.rest;
 
 import com.cumulocity.microservice.security.service.RoleService;
+import com.cumulocity.microservice.subscription.service.MicroserviceSubscriptionsService;
+import com.cumulocity.microservice.subscription.service.impl.MicroserviceSubscriptionScheduler;
 import com.fasterxml.jackson.core.JsonProcessingException;
 import lombok.extern.slf4j.Slf4j;
 import mqtt.mapping.configuration.ConfigurationConnection;
@@ -37,6 +39,8 @@ import mqtt.mapping.model.*;
 import mqtt.mapping.model.Mapping;
 import mqtt.mapping.processor.model.ProcessingContext;
 import mqtt.mapping.service.MQTTClient;
+import mqtt.mapping.service.MQTTClientManager;
+
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.http.HttpStatus;
@@ -54,8 +58,14 @@ import java.util.Map;
 @RestController
 public class MQTTMappingRestController {
 
+    // @Autowired
+    // MQTTClient mqttClient;
+
     @Autowired
-    MQTTClient mqttClient;
+    MQTTClientManager mqttClientManager;
+
+    @Autowired
+    MicroserviceSubscriptionsService subscriptionsService;
 
     @Autowired
     C8YAgent c8yAgent;
@@ -104,10 +114,11 @@ public class MQTTMappingRestController {
 
     @RequestMapping(value = "/configuration/connection", method = RequestMethod.GET, produces = MediaType.APPLICATION_JSON_VALUE)
     public ResponseEntity<ConfigurationConnection> getConnectionConfiguration() {
-        log.info("Get connection details");
+        String tenant = subscriptionsService.getTenant();
+        log.info("[{}] Get connection details", tenant);
         try {
             ConfigurationConnection configuration = connectionConfigurationComponent
-                    .loadConnectionConfiguration();
+                    .loadConnectionConfiguration(tenant);
             if (configuration == null) {
                 // throw new ResponseStatusException(HttpStatus.NOT_FOUND, "MQTT connection not
                 // available");
@@ -127,6 +138,8 @@ public class MQTTMappingRestController {
     public ResponseEntity<HttpStatus> configureConnectionToBroker(
             @Valid @RequestBody ConfigurationConnection configuration) {
 
+        String tenant = subscriptionsService.getTenant();
+
         if (!userHasMQTTMappingAdminRole()) {
             log.error("Insufficient Permission, user does not have required permission to access this API");
             throw new ResponseStatusException(HttpStatus.FORBIDDEN,
@@ -139,7 +152,7 @@ public class MQTTMappingRestController {
         log.info("Post MQTT broker configuration: {}", configurationClone.toString());
         try {
             connectionConfigurationComponent.saveConnectionConfiguration(configuration);
-            mqttClient.reconnect();
+            mqttClientManager.getMqttClient(tenant).reconnect();
             return ResponseEntity.status(HttpStatus.CREATED).build();
         } catch (Exception ex) {
             log.error("Error getting mqtt broker configuration {}", ex);
@@ -150,9 +163,10 @@ public class MQTTMappingRestController {
     @RequestMapping(value = "/configuration/service", method = RequestMethod.GET, produces = MediaType.APPLICATION_JSON_VALUE)
     public ResponseEntity<ServiceConfiguration> getServiceConfiguration() {
         log.info("Get connection details");
+        String tenant = subscriptionsService.getTenant();
 
         try {
-            final ServiceConfiguration configuration = serviceConfigurationComponent.loadServiceConfiguration();
+            final ServiceConfiguration configuration = serviceConfigurationComponent.loadServiceConfiguration(tenant);
             if (configuration == null) {
                 throw new ResponseStatusException(HttpStatus.NOT_FOUND, "Service connection not available");
             }
@@ -188,21 +202,22 @@ public class MQTTMappingRestController {
 
     @RequestMapping(value = "/operation", method = RequestMethod.POST, consumes = MediaType.APPLICATION_JSON_VALUE)
     public ResponseEntity<HttpStatus> runOperation(@Valid @RequestBody ServiceOperation operation) {
-        log.info("Post operation: {}", operation.toString());
+        String tenant = subscriptionsService.getTenant();
+        log.info("[{}] Post operation: {}", tenant, operation.toString());
         try {
             if (operation.getOperation().equals(Operation.RELOAD_MAPPINGS)) {
-                mappingComponent.rebuildMappingOutboundCache();
+                mappingComponent.rebuildMappingOutboundCache(tenant);
                 // in order to keep MappingInboundCache and ActiveSubscriptionMappingInbound in
                 // sync, the ActiveSubscriptionMappingInbound is build on the
                 // reviously used updatedMappings
-                List<Mapping> updatedMappings = mappingComponent.rebuildMappingInboundCache();
-                mqttClient.updateActiveSubscriptionMappingInbound(updatedMappings, false);
+                List<Mapping> updatedMappings = mappingComponent.rebuildMappingInboundCache(tenant);
+                mqttClientManager.getMqttClient(tenant).updateActiveSubscriptionMappingInbound(updatedMappings, false);
             } else if (operation.getOperation().equals(Operation.CONNECT)) {
-                mqttClient.connectToBroker();
+                mqttClientManager.getMqttClient(tenant).connectToBroker();
             } else if (operation.getOperation().equals(Operation.DISCONNECT)) {
-                mqttClient.disconnectFromBroker();
+                mqttClientManager.getMqttClient(tenant).disconnectFromBroker();
             } else if (operation.getOperation().equals(Operation.REFRESH_STATUS_MAPPING)) {
-                mappingComponent.sendStatusMapping();
+                mappingComponent.sendStatusMapping(tenant);
             } else if (operation.getOperation().equals(Operation.RESET_STATUS_MAPPING)) {
                 mappingComponent.resetMappingStatus();
             } else if (operation.getOperation().equals(Operation.RELOAD_EXTENSIONS)) {
@@ -212,7 +227,7 @@ public class MQTTMappingRestController {
                 Boolean activeBoolean = Boolean.parseBoolean(operation.getParameter().get("active"));
                 mappingComponent.setActivationMapping(id, activeBoolean);
             } else if (operation.getOperation().equals(Operation.REFRESH_NOTFICATIONS_SUBSCRIPTIONS)) {
-                c8yAgent.notificationSubscriberReconnect();
+                c8yAgent.notificationSubscriberReconnect(tenant);
             }
             return ResponseEntity.status(HttpStatus.CREATED).build();
         } catch (Exception ex) {
@@ -223,7 +238,8 @@ public class MQTTMappingRestController {
 
     @RequestMapping(value = "/monitoring/status/service", method = RequestMethod.GET, produces = MediaType.APPLICATION_JSON_VALUE)
     public ResponseEntity<ServiceStatus> getServiceStatus() {
-        ServiceStatus st = mqttClient.getServiceStatus();
+        String tenant = subscriptionsService.getTenant();
+        ServiceStatus st = mqttClientManager.getMqttClient(tenant).getServiceStatus();
         log.info("Get status: {}", st);
         return new ResponseEntity<>(st, HttpStatus.OK);
     }
@@ -244,7 +260,8 @@ public class MQTTMappingRestController {
 
     @RequestMapping(value = "/monitoring/subscription", method = RequestMethod.GET, consumes = MediaType.APPLICATION_JSON_VALUE, produces = MediaType.APPLICATION_JSON_VALUE)
     public ResponseEntity<Map<String, Integer>> getActiveSubscriptions() {
-        Map<String, Integer> result = mqttClient.getActiveSubscriptions();
+        String tenant = subscriptionsService.getTenant();
+        Map<String, Integer> result = mqttClientManager.getMqttClient(tenant).getActiveSubscriptions();
         log.info("Get active subscriptions!");
         return ResponseEntity.status(HttpStatus.OK).body(result);
     }
@@ -268,6 +285,7 @@ public class MQTTMappingRestController {
 
     @RequestMapping(value = "/mapping/{id}", method = RequestMethod.DELETE, produces = MediaType.APPLICATION_JSON_VALUE)
     public ResponseEntity<String> deleteMapping(@PathVariable String id) {
+        String tenant = subscriptionsService.getTenant();
         log.info("Delete mapping: {}", id);
         Mapping mapping = null;
 
@@ -280,7 +298,7 @@ public class MQTTMappingRestController {
             mappingComponent.deleteFromMappingCache(mapping);
 
             if (!Direction.OUTBOUND.equals(mapping.direction)) {
-                mqttClient.deleteActiveSubscriptionMappingInbound(mapping);
+                mqttClientManager.getMqttClient(tenant).deleteActiveSubscriptionMappingInbound(mapping);
             }
         } catch (Exception ex) {
             log.error("Deleting active mappings is not allowed {}", ex);
@@ -294,15 +312,16 @@ public class MQTTMappingRestController {
     @RequestMapping(value = "/mapping", method = RequestMethod.POST, consumes = MediaType.APPLICATION_JSON_VALUE, produces = MediaType.APPLICATION_JSON_VALUE)
     public ResponseEntity<Mapping> createMapping(@Valid @RequestBody Mapping mapping) {
         try {
-            log.info("Add mapping: {}", mapping);
+            String tenant = subscriptionsService.getTenant();
+            log.info("[{}] Add mapping: {}", tenant, mapping);
             mapping = mappingComponent.createMapping(mapping);
             if (Direction.OUTBOUND.equals(mapping.direction)) {
-                mappingComponent.rebuildMappingOutboundCache();
+                mappingComponent.rebuildMappingOutboundCache(tenant);
             } else {
-                mqttClient.upsertActiveSubscriptionMappingInbound(mapping);
+                mqttClientManager.getMqttClient(tenant).upsertActiveSubscriptionMappingInbound(mapping);
                 mappingComponent.deleteFromCacheMappingInbound(mapping);
                 mappingComponent.addToCacheMappingInbound(mapping);
-                mappingComponent.getCacheMappingInbound().put(mapping.id, mapping);
+                mappingComponent.getCacheMappingInbound(tenant).put(mapping.id, mapping);
             }
             return ResponseEntity.status(HttpStatus.OK).body(mapping);
         } catch (Exception ex) {
@@ -318,15 +337,16 @@ public class MQTTMappingRestController {
     @RequestMapping(value = "/mapping/{id}", method = RequestMethod.PUT, consumes = MediaType.APPLICATION_JSON_VALUE, produces = MediaType.APPLICATION_JSON_VALUE)
     public ResponseEntity<Mapping> updateMapping(@PathVariable String id, @Valid @RequestBody Mapping mapping) {
         try {
-            log.info("Update mapping: {}, {}", mapping, id);
+            String tenant = subscriptionsService.getTenant();
+            log.info("[{}] Update mapping: {}, {}", tenant, mapping, id);
             mapping = mappingComponent.updateMapping(mapping, false);
             if (Direction.OUTBOUND.equals(mapping.direction)) {
-                mappingComponent.rebuildMappingOutboundCache();
+                mappingComponent.rebuildMappingOutboundCache(tenant);
             } else {
-                mqttClient.upsertActiveSubscriptionMappingInbound(mapping);
+                mqttClientManager.getMqttClient(tenant).upsertActiveSubscriptionMappingInbound(mapping);
                 mappingComponent.deleteFromCacheMappingInbound(mapping);
                 mappingComponent.addToCacheMappingInbound(mapping);
-                mappingComponent.getCacheMappingInbound().put(mapping.id, mapping);
+                mappingComponent.getCacheMappingInbound(tenant).put(mapping.id, mapping);
             }
             return ResponseEntity.status(HttpStatus.OK).body(mapping);
         } catch (Exception ex) {
@@ -346,11 +366,12 @@ public class MQTTMappingRestController {
     public ResponseEntity<List<ProcessingContext<?>>> forwardPayload(@PathVariable String method,
             @RequestParam URI topic,
             @Valid @RequestBody Map<String, Object> payload) {
+        String tenant = subscriptionsService.getTenant();
         String path = topic.getPath();
         log.info("Test payload: {}, {}, {}", path, method, payload);
         try {
             boolean send = ("send").equals(method);
-            List<ProcessingContext<?>> result = mqttClient.test(path, send, payload);
+            List<ProcessingContext<?>> result = mqttClientManager.getMqttClient(tenant).test(path, send, payload);
             return new ResponseEntity<List<ProcessingContext<?>>>(result, HttpStatus.OK);
         } catch (Exception ex) {
             log.error("Error transforming payload: {}", ex);

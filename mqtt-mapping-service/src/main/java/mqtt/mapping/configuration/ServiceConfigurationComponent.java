@@ -51,46 +51,35 @@ public class ServiceConfigurationComponent {
     private static final String OPTION_KEY_CONNECTION_CONFIGURATION = "credentials.connection.configuration";
     private static final String OPTION_KEY_SERVICE_CONFIGURATION = "service.configuration";
 
-    private final TenantOptionApi tenantOptionApi;
-
-    @Getter
-    @Setter
-    private String tenant = null;
+    @Autowired
+    private TenantOptionApi tenantOptionApi;
 
     @Autowired
     private MicroserviceSubscriptionsService subscriptionsService;
 
-    private final Platform platform;
+    // @Autowired
+    // private Platform platform;
 
+    @Autowired
     private ObjectMapper objectMapper;
 
-    @Autowired
-    public void setObjectMapper(ObjectMapper objectMapper) {
-        this.objectMapper = objectMapper;
-    }
 
-    @Autowired
-    public ServiceConfigurationComponent(TenantOptionApi tenantOptionApi, Platform platform) {
-        this.tenantOptionApi = tenantOptionApi;
-        this.platform = platform;
-    }
-
-    public TrustedCertificateRepresentation loadCertificateByName(String certificateName,
-            MicroserviceCredentials credentials) {
-        MutableObject<TrustedCertificateRepresentation> result = new MutableObject<TrustedCertificateRepresentation>(
-                new TrustedCertificateRepresentation());
-        TrustedCertificateCollectionRepresentation certificates = platform.rest().get(
-                String.format("/tenant/tenants/%s/trusted-certificates", credentials.getTenant()),
-                MediaType.APPLICATION_JSON_TYPE, TrustedCertificateCollectionRepresentation.class);
-        certificates.forEach(cert -> {
-            if (cert.getName().equals(certificateName)) {
-                result.setValue(cert);
-                log.debug("Found certificate with fingerprint: {} with name: {}", cert.getFingerprint(),
-                        cert.getName());
-            }
-        });
-        return result.getValue();
-    }
+    // public TrustedCertificateRepresentation loadCertificateByName(String certificateName,
+    //         MicroserviceCredentials credentials) {
+    //     MutableObject<TrustedCertificateRepresentation> result = new MutableObject<TrustedCertificateRepresentation>(
+    //             new TrustedCertificateRepresentation());
+    //     TrustedCertificateCollectionRepresentation certificates = platform.rest().get(
+    //             String.format("/tenant/tenants/%s/trusted-certificates", credentials.getTenant()),
+    //             MediaType.APPLICATION_JSON_TYPE, TrustedCertificateCollectionRepresentation.class);
+    //     certificates.forEach(cert -> {
+    //         if (cert.getName().equals(certificateName)) {
+    //             result.setValue(cert);
+    //             log.debug("Found certificate with fingerprint: {} with name: {}", cert.getFingerprint(),
+    //                     cert.getName());
+    //         }
+    //     });
+    //     return result.getValue();
+    // }
 
     public void saveServiceConfiguration(final ServiceConfiguration configuration) throws JsonProcessingException {
         if (configuration == null) {
@@ -102,7 +91,7 @@ public class ServiceConfigurationComponent {
         tenantOptionApi.save(optionRepresentation);
     }
 
-    public ServiceConfiguration loadServiceConfiguration() {
+    public ServiceConfiguration loadServiceConfiguration(String tenant) {
         final OptionPK option = new OptionPK();
         option.setCategory(OPTION_CATEGORY_CONFIGURATION);
         option.setKey(OPTION_KEY_SERVICE_CONFIGURATION);
@@ -112,11 +101,11 @@ public class ServiceConfigurationComponent {
                 final OptionRepresentation optionRepresentation = tenantOptionApi.getOption(option);
                 final ServiceConfiguration configuration = new ObjectMapper().readValue(optionRepresentation.getValue(),
                         ServiceConfiguration.class);
-                log.debug("Returning service configuration found: {}:", configuration.logPayload);
+                log.debug("[{}] Returning service configuration found: {}:", tenant, configuration.logPayload);
                 rt = configuration;
-                log.info("Found connection configuration: {}", rt);
+                log.info("[{}] Found connection configuration: {}", tenant, rt);
             } catch (SDKException exception) {
-                log.warn("No configuration found, returning empty element!");
+                log.warn("[{}] No configuration found, returning empty element!", tenant);
                 // exception.printStackTrace();
             } catch (JsonMappingException e) {
                 e.printStackTrace();
@@ -128,12 +117,12 @@ public class ServiceConfigurationComponent {
         return result;
     }
 
-    public void deleteAllConfiguration() {
-        final OptionPK optionPK = new OptionPK();
-        optionPK.setCategory(OPTION_CATEGORY_CONFIGURATION);
-        optionPK.setKey(OPTION_KEY_CONNECTION_CONFIGURATION);
-        tenantOptionApi.delete(optionPK);
-        optionPK.setKey(OPTION_KEY_SERVICE_CONFIGURATION);
-        tenantOptionApi.delete(optionPK);
-    }
+    // public void deleteAllConfiguration() {
+    //     final OptionPK optionPK = new OptionPK();
+    //     optionPK.setCategory(OPTION_CATEGORY_CONFIGURATION);
+    //     optionPK.setKey(OPTION_KEY_CONNECTION_CONFIGURATION);
+    //     tenantOptionApi.delete(optionPK);
+    //     optionPK.setKey(OPTION_KEY_SERVICE_CONFIGURATION);
+    //     tenantOptionApi.delete(optionPK);
+    // }
 }

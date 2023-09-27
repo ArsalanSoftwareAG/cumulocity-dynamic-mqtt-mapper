@@ -49,8 +49,12 @@ import java.util.Map;
 @Service
 public class StaticProtobufProcessor extends BasePayloadProcessor<byte[]> {
 
-    public StaticProtobufProcessor(ObjectMapper objectMapper, MQTTClient mqttClient, C8YAgent c8yAgent) {
-        super(objectMapper, mqttClient, c8yAgent);
+    public StaticProtobufProcessor(ObjectMapper objectMapper,
+//     MQTTClient mqttClient,
+    C8YAgent c8yAgent) {
+        super(objectMapper,
+        // mqttClient,
+        c8yAgent);
     }
 
     @Override

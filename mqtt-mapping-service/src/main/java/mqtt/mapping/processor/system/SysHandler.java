@@ -57,7 +57,7 @@ public class SysHandler {
     @Autowired
     private C8YAgent c8yAgent;
 
-    public void handleSysPayload(String topic, byte[] payload) {
+    public void handleSysPayload(String tenant, String topic, byte[] payload) {
         if (topic == null)
             return;
         //byte[] payload = mqttMessage.getPayload();
@@ -67,7 +67,7 @@ public class SysHandler {
             mv.setValue(bytesToBigDecimal(payload));
             mv.setUnit("bytes");
             mvMap.put("BytesReceived", mv);
-            c8yAgent.createMeasurement("MqttSysStatistics", "mqtt_sysstatistics", c8yAgent.getAgentMOR(),
+            c8yAgent.createMeasurement(tenant, "MqttSysStatistics", "mqtt_sysstatistics", c8yAgent.getAgentMOR(),
                     DateTime.now(), mvMap);
         }
         if (BYTES_SENT.equals(topic)) {
@@ -75,7 +75,7 @@ public class SysHandler {
             mv.setValue(bytesToBigDecimal(payload));
             mv.setUnit("bytes");
             mvMap.put("BytesSent", mv);
-            c8yAgent.createMeasurement("MqttSysStatistics", "mqtt_sysstatistics", c8yAgent.getAgentMOR(),
+            c8yAgent.createMeasurement(tenant, "MqttSysStatistics", "mqtt_sysstatistics", c8yAgent.getAgentMOR(),
                     DateTime.now(), mvMap);
 
         }
@@ -84,7 +84,7 @@ public class SysHandler {
             mv.setValue(bytesToBigDecimal(payload));
             mv.setUnit("#");
             mvMap.put("ClientsConnected", mv);
-            c8yAgent.createMeasurement("MqttSysStatistics", "mqtt_sysstatistics", c8yAgent.getAgentMOR(),
+            c8yAgent.createMeasurement(tenant, "MqttSysStatistics", "mqtt_sysstatistics", c8yAgent.getAgentMOR(),
                     DateTime.now(), mvMap);
 
         }
@@ -93,7 +93,7 @@ public class SysHandler {
             mv.setValue(bytesToBigDecimal(payload));
             mv.setUnit("#");
             mvMap.put("ClientsPersisted", mv);
-            c8yAgent.createMeasurement("MqttSysStatistics", "mqtt_sysstatistics", c8yAgent.getAgentMOR(),
+            c8yAgent.createMeasurement(tenant, "MqttSysStatistics", "mqtt_sysstatistics", c8yAgent.getAgentMOR(),
                     DateTime.now(), mvMap);
         }
         if (CLIENTS_MAX.equals(topic)) {
@@ -101,7 +101,7 @@ public class SysHandler {
             mv.setValue(bytesToBigDecimal(payload));
             mv.setUnit("#");
             mvMap.put("ClientsMax", mv);
-            c8yAgent.createMeasurement("MqttSysStatistics", "mqtt_sysstatistics", c8yAgent.getAgentMOR(),
+            c8yAgent.createMeasurement(tenant, "MqttSysStatistics", "mqtt_sysstatistics", c8yAgent.getAgentMOR(),
                     DateTime.now(), mvMap);
         }
 
@@ -110,7 +110,7 @@ public class SysHandler {
             mv.setValue(bytesToBigDecimal(payload));
             mv.setUnit("#");
             mvMap.put("ClientsTotal", mv);
-            c8yAgent.createMeasurement("MqttSysStatistics", "mqtt_sysstatistics", c8yAgent.getAgentMOR(),
+            c8yAgent.createMeasurement(tenant, "MqttSysStatistics", "mqtt_sysstatistics", c8yAgent.getAgentMOR(),
                     DateTime.now(), mvMap);
         }
 
@@ -119,7 +119,7 @@ public class SysHandler {
             mv.setValue(bytesToBigDecimal(payload));
             mv.setUnit("#");
             mvMap.put("MsgReceived", mv);
-            c8yAgent.createMeasurement("MqttSysStatistics", "mqtt_sysstatistics", c8yAgent.getAgentMOR(),
+            c8yAgent.createMeasurement(tenant, "MqttSysStatistics", "mqtt_sysstatistics", c8yAgent.getAgentMOR(),
                     DateTime.now(), mvMap);
         }
 
@@ -128,7 +128,7 @@ public class SysHandler {
             mv.setValue(bytesToBigDecimal(payload));
             mv.setUnit("#");
             mvMap.put("MsgSent", mv);
-            c8yAgent.createMeasurement("MqttSysStatistics", "mqtt_sysstatistics", c8yAgent.getAgentMOR(),
+            c8yAgent.createMeasurement(tenant, "MqttSysStatistics", "mqtt_sysstatistics", c8yAgent.getAgentMOR(),
                     DateTime.now(), mvMap);
         }
 
@@ -137,7 +137,7 @@ public class SysHandler {
             mv.setValue(bytesToBigDecimal(payload));
             mv.setUnit("#");
             mvMap.put("MsgDropped", mv);
-            c8yAgent.createMeasurement("MqttSysStatistics", "mqtt_sysstatistics", c8yAgent.getAgentMOR(),
+            c8yAgent.createMeasurement(tenant, "MqttSysStatistics", "mqtt_sysstatistics", c8yAgent.getAgentMOR(),
                     DateTime.now(), mvMap);
 
         }
@@ -147,7 +147,7 @@ public class SysHandler {
             mv.setValue(bytesToBigDecimal(payload));
             mv.setUnit("#");
             mvMap.put("SubCount", mv);
-            c8yAgent.createMeasurement("MqttSysStatistics", "mqtt_sysstatistics", c8yAgent.getAgentMOR(),
+            c8yAgent.createMeasurement(tenant, "MqttSysStatistics", "mqtt_sysstatistics", c8yAgent.getAgentMOR(),
                     DateTime.now(), mvMap);
         }
     }

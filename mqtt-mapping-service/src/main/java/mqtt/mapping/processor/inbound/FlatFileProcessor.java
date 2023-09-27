@@ -37,8 +37,12 @@ import java.nio.charset.Charset;
 public class FlatFileProcessor extends JSONProcessor {
 
 
-    public FlatFileProcessor( ObjectMapper objectMapper, MQTTClient mqttClient, C8YAgent c8yAgent){
-        super(objectMapper, mqttClient, c8yAgent);
+    public FlatFileProcessor( ObjectMapper objectMapper,
+    // MQTTClient mqttClient,
+    C8YAgent c8yAgent){
+        super(objectMapper,
+        // mqttClient,
+        c8yAgent);
     }
 
     @Override

@@ -30,8 +30,6 @@ import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.JsonMappingException;
 import com.fasterxml.jackson.databind.ObjectMapper;
 
-import lombok.Getter;
-import lombok.Setter;
 import lombok.extern.slf4j.Slf4j;
 
 import org.springframework.beans.factory.annotation.Autowired;
@@ -44,27 +42,16 @@ public class ConnectionConfigurationComponent {
     private static final String OPTION_KEY_CONNECTION_CONFIGURATION = "credentials.connection.configuration";
     private static final String OPTION_KEY_SERVICE_CONFIGURATION = "service.configuration";
 
-    private final TenantOptionApi tenantOptionApi;
-
-    @Getter
-    @Setter
-    private String tenant = null;
+    @Autowired
+    private TenantOptionApi tenantOptionApi;
 
     @Autowired
     private MicroserviceSubscriptionsService subscriptionsService;
 
+    @Autowired
     private ObjectMapper objectMapper;
 
-    @Autowired
-    public void setObjectMapper(ObjectMapper objectMapper) {
-        this.objectMapper = objectMapper;
-    }
-
-    @Autowired
-    public ConnectionConfigurationComponent(TenantOptionApi tenantOptionApi) {
-        this.tenantOptionApi = tenantOptionApi;
-    }
-
+    // Within Context due to RestController
     public void saveConnectionConfiguration(final ConfigurationConnection configuration)
             throws JsonProcessingException {
         if (configuration == null) {
@@ -76,7 +63,7 @@ public class ConnectionConfigurationComponent {
         tenantOptionApi.save(optionRepresentation);
     }
 
-    public ConfigurationConnection loadConnectionConfiguration() {
+    public ConfigurationConnection loadConnectionConfiguration(String tenant) {
         final OptionPK option = new OptionPK();
         option.setCategory(OPTION_CATEGORY_CONFIGURATION);
         option.setKey(OPTION_KEY_CONNECTION_CONFIGURATION);

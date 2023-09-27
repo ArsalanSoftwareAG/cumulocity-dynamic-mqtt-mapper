@@ -1,5 +1,6 @@
 package mqtt.mapping.rest;
 
+import com.cumulocity.microservice.subscription.service.MicroserviceSubscriptionsService;
 import com.cumulocity.rest.representation.inventory.ManagedObjectRepresentation;
 
 import lombok.extern.slf4j.Slf4j;
@@ -29,6 +30,9 @@ public class MQTTMappingOutboundRestController {
     @Autowired
     C8YAPISubscriber c8yApiSubscriber;
 
+    @Autowired
+    private MicroserviceSubscriptionsService subscriptionsService;
+
     @Value("${APP.outputMappingEnabled}")
     private boolean outputMappingEnabled;
 
@@ -37,8 +41,9 @@ public class MQTTMappingOutboundRestController {
         if (!outputMappingEnabled)
             throw new ResponseStatusException(HttpStatus.NOT_FOUND, "Output Mapping is disabled!");
         try {
+            String tenant = subscriptionsService.getTenant();
             for (Device device : subscription.getDevices()) {
-                ManagedObjectRepresentation mor = c8yAgent.getManagedObjectForId(device.getId());
+                ManagedObjectRepresentation mor = c8yAgent.getManagedObjectForId(tenant, device.getId());
                 if (mor != null) {
                     c8yApiSubscriber.subscribeDevice(mor, subscription.getApi());
                 } else {
@@ -57,6 +62,7 @@ public class MQTTMappingOutboundRestController {
         if (!outputMappingEnabled)
             throw new ResponseStatusException(HttpStatus.NOT_FOUND, "Output Mapping is disabled!");
         try {
+            String tenant = subscriptionsService.getTenant();
             //List<NotificationSubscriptionRepresentation> deviceSubscriptions = c8yApiSubscriber.getNotificationSubscriptions(null, null).get();
             C8YAPISubscription c8ySubscription = c8yApiSubscriber.getDeviceSubscriptions(null, null);
             //3 cases -
@@ -74,7 +80,7 @@ public class MQTTMappingOutboundRestController {
             c8ySubscription.getDevices().forEach(entity -> toBeCreatedSub.removeIf(x -> x.getId().equals(entity.getId())));
 
             for (Device device : toBeCreatedSub) {
-                ManagedObjectRepresentation mor = c8yAgent.getManagedObjectForId(device.getId());
+                ManagedObjectRepresentation mor = c8yAgent.getManagedObjectForId(tenant, device.getId());
                 if (mor != null) {
                     try {
                         c8yApiSubscriber.subscribeDevice(mor, subscription.getApi());
@@ -87,7 +93,7 @@ public class MQTTMappingOutboundRestController {
             }
 
             for (Device device : toBeRemovedSub) {
-                ManagedObjectRepresentation mor = c8yAgent.getManagedObjectForId(device.getId());
+                ManagedObjectRepresentation mor = c8yAgent.getManagedObjectForId(tenant, device.getId());
                 if (mor != null) {
                     try {
                         c8yApiSubscriber.unsubscribeDevice(mor);
@@ -122,7 +128,8 @@ public class MQTTMappingOutboundRestController {
         if (!outputMappingEnabled)
             throw new ResponseStatusException(HttpStatus.NOT_FOUND, "Output Mapping is disabled!");
         try {
-                ManagedObjectRepresentation mor = c8yAgent.getManagedObjectForId(deviceId);
+            String tenant = subscriptionsService.getTenant();
+                ManagedObjectRepresentation mor = c8yAgent.getManagedObjectForId(tenant, deviceId);
                 if (mor != null) {
                     c8yApiSubscriber.unsubscribeDevice(mor);
                 } else {

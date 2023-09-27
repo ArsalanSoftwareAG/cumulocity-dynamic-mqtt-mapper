@@ -211,7 +211,9 @@ public class C8YAPISubscriber {
         NotificationSubscriptionFilter finalFilter = filter;
         C8YAPISubscription c8YAPISubscription = new C8YAPISubscription();
         List<Device> devices = new ArrayStack();
-        subscriptionsService.runForTenant(subscriptionsService.getTenant(), () -> {
+        String tenant = subscriptionsService.getTenant();
+        
+        subscriptionsService.runForTenant(tenant, () -> {
             Iterator<NotificationSubscriptionRepresentation> subIt = subscriptionApi
                     .getSubscriptionsByFilter(finalFilter).get().allPages().iterator();
             NotificationSubscriptionRepresentation notification = null;
@@ -222,7 +224,7 @@ public class C8YAPISubscriber {
                     Device device = new Device();
                     device.setId(notification.getSource().getId().getValue());
                     ManagedObjectRepresentation mor = c8YAgent
-                            .getManagedObjectForId(notification.getSource().getId().getValue());
+                            .getManagedObjectForId(tenant, notification.getSource().getId().getValue());
                     if (mor != null)
                         device.setName(mor.getName());
                     else
@@ -311,7 +313,7 @@ public class C8YAPISubscriber {
 
                             logger.info("Device deleted with name {} and id {}", mor.getName(), mor.getId().getValue());
                             final ManagedObjectRepresentation morRetrieved = c8YAgent
-                                    .getManagedObjectForId(mor.getId().getValue());
+                                    .getManagedObjectForId(tenant, mor.getId().getValue());
                             if (morRetrieved != null) {
                                 unsubscribeDevice(morRetrieved);
                             }

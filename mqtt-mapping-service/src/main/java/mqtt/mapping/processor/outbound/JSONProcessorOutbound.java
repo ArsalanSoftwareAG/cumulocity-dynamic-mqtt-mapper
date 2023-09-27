@@ -66,7 +66,7 @@ public class JSONProcessorOutbound extends BasePayloadProcessorOutbound<JsonNode
     }
 
     @Override
-    public void extractFromSource(ProcessingContext<JsonNode> context)
+    public void extractFromSource(String tenant, ProcessingContext<JsonNode> context)
             throws ProcessingException {
         Mapping mapping = context.getMapping();
         JsonNode payloadJsonNode = context.getPayload();
@@ -135,7 +135,7 @@ public class JSONProcessorOutbound extends BasePayloadProcessorOutbound<JsonNode
                     if (ps.equals(MappingRepresentation.findDeviceIdentifier(mapping).pathSource)
                             && substitution.resolve2ExternalId) {
                         log.info("Findind external Id: resolveGlobalId2ExternalId: {}, {}, {}, {}, {}", ps, extractedSourceContent.toPrettyString(), extractedSourceContent.asText());
-                        ExternalIDRepresentation externalId = c8yAgent.resolveGlobalId2ExternalId(
+                        ExternalIDRepresentation externalId = c8yAgent.resolveGlobalId2ExternalId(tenant,
                                 new GId(extractedSourceContent.asText()), mapping.externalIdType,
                                 context);
                         if (externalId == null && context.isSendPayload()) {

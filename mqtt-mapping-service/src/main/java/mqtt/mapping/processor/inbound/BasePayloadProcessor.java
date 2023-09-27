@@ -58,9 +58,11 @@ import java.util.Map.Entry;
 @Service
 public abstract class BasePayloadProcessor<T> {
 
-    public BasePayloadProcessor(ObjectMapper objectMapper, MQTTClient mqttClient, C8YAgent c8yAgent) {
+    public BasePayloadProcessor(ObjectMapper objectMapper,
+    // MQTTClient mqttClient,
+    C8YAgent c8yAgent) {
         this.objectMapper = objectMapper;
-        this.mqttClient = mqttClient;
+        // this.mqttClient = mqttClient;
         this.c8yAgent = c8yAgent;
     }
 
@@ -68,7 +70,7 @@ public abstract class BasePayloadProcessor<T> {
 
     protected ObjectMapper objectMapper;
 
-    protected MQTTClient mqttClient;
+    // protected MQTTClient mqttClient;
 
     @Autowired
     SysHandler sysHandler;
@@ -83,7 +85,7 @@ public abstract class BasePayloadProcessor<T> {
 
     public abstract void extractFromSource(ProcessingContext<T> context) throws ProcessingException;
 
-    public ProcessingContext<T> substituteInTargetAndSend(ProcessingContext<T> context) {
+    public ProcessingContext<T> substituteInTargetAndSend(String tenant, ProcessingContext<T> context) {
         /*
          * step 3 replace target with extract content from inbound payload
          */
@@ -138,7 +140,7 @@ public abstract class BasePayloadProcessor<T> {
                 if (!mapping.targetAPI.equals(API.INVENTORY)) {
                     if (pathTarget.equals(deviceIdentifierMapped2PathTarget2)) {
 
-                        ExternalIDRepresentation sourceId = c8yAgent.resolveExternalId2GlobalId(
+                        ExternalIDRepresentation sourceId = c8yAgent.resolveExternalId2GlobalId(tenant,
                                 new ID(mapping.externalIdType, substituteValue.typedValue().toString()), context);
                         if (sourceId == null && mapping.createNonExistingDevice) {
                             ManagedObjectRepresentation attocDevice = null;
@@ -152,7 +154,7 @@ public abstract class BasePayloadProcessor<T> {
                                 var newPredecessor = context.addRequest(
                                         new C8YRequest(predecessor, RequestMethod.PATCH, device.value.asText(),
                                                 mapping.externalIdType, requestString, null, API.INVENTORY, null));
-                                attocDevice = c8yAgent.upsertDevice(
+                                attocDevice = c8yAgent.upsertDevice(tenant,
                                         new ID(mapping.externalIdType, substituteValue.value.asText()), context);
                                 var response = objectMapper.writeValueAsString(attocDevice);
                                 context.getCurrentRequest().setResponse(response);
@@ -186,7 +188,7 @@ public abstract class BasePayloadProcessor<T> {
                                 payloadTarget.jsonString(),
                                 null, API.INVENTORY, null));
                 try {
-                    attocDevice = c8yAgent.upsertDevice(
+                    attocDevice = c8yAgent.upsertDevice(tenant,
                             new ID(mapping.externalIdType, device.value.asText()), context);
                     var response = objectMapper.writeValueAsString(attocDevice);
                     context.getCurrentRequest().setResponse(response);
@@ -201,7 +203,7 @@ public abstract class BasePayloadProcessor<T> {
                                 payloadTarget.jsonString(),
                                 null, mapping.targetAPI, null));
                 try {
-                    attocRequest = c8yAgent.createMEAO(context);
+                    attocRequest = c8yAgent.createMEAO(tenant, context);
                     var response = objectMapper.writeValueAsString(attocRequest);
                     context.getCurrentRequest().setResponse(response);
                 } catch (Exception e) {
